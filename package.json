@@ -1,0 +1,31 @@
+{
+  "name": "stage-prompter",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Offline live-performance lyrics & chords prompter",
+  "scripts": {
+    "dev": "vite",
+    "build": "svelte-check --tsconfig ./tsconfig.json && vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@tsconfig/svelte": "^5.0.4",
+    "svelte": "^5.19.0",
+    "svelte-check": "^4.1.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.11",
+    "vite-plugin-pwa": "^0.21.1",
+    "vitest": "^3.0.4"
+  },
+  "dependencies": {
+    "@fontsource-variable/heebo": "^5.1.1",
+    "@fontsource-variable/inter": "^5.1.1",
+    "@fontsource/jetbrains-mono": "^5.1.2",
+    "idb": "^8.0.1",
+    "svelte-dnd-action": "^0.9.55"
+  }
+}
