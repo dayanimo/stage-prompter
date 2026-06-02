@@ -101,10 +101,26 @@
     else if (index > 0) go(-1);
   }
 
-  // Called on every metronome beat. In 2-line mode it advances one line every
-  // `lineBars` bars so the view follows the song's tempo hands-free.
+  // Count-in display: the big number currently shown (beats remaining), and a
+  // tick that re-keys the entrance animation on every count-in beat.
+  let countInNum = $state(0);
+  let countInTick = $state(0);
+  let countInDown = $state(false);
+
+  // Called on every metronome beat. Drives the count-in countdown (both modes)
+  // and, in 2-line mode, advances one line every `lineBars` bars so the view
+  // follows the song's tempo hands-free.
   function handleBeat(info: BeatInfo): void {
-    if (!lineView || !playing || info.countingIn || lineBars <= 0) return;
+    if (info.countingIn) {
+      const beats = Math.max(1, song?.timeSig.beats ?? 4);
+      const total = Math.max(1, ($settings.countInBars ?? 0) * beats);
+      const idx = info.bar * beats + info.beat; // 0-based position within the count-in
+      countInNum = Math.max(1, total - idx); // beats remaining: e.g. 4,3,2,1
+      countInDown = info.beat === 0; // accent the downbeat of each count-in bar
+      countInTick += 1;
+      return;
+    }
+    if (!lineView || !playing || lineBars <= 0) return;
     beatTick += 1;
     const perLine = Math.max(1, lineBars * Math.max(1, song?.timeSig.beats ?? 4));
     if (beatTick >= perLine) {
@@ -385,7 +401,18 @@
     </div>
 
     {#if countingIn}
-      <div class="countin" role="status">ספירה לתוך…</div>
+      <div class="countin" role="status" aria-live="assertive" aria-label={`ספירה לאחור ${countInNum}`}>
+        {#key countInTick}
+          <span class="cd-ring" class:down={countInDown} aria-hidden="true"></span>
+          <span class="cd-ring cd-ring-2" class:down={countInDown} aria-hidden="true"></span>
+          <span class="cd-num" class:down={countInDown}>{countInNum}</span>
+        {/key}
+        <span class="cd-dots" aria-hidden="true">
+          {#each Array(Math.max(1, song.timeSig.beats)) as _, i (i)}
+            <span class="cd-dot" class:filled={i < song.timeSig.beats - countInNum + 1}></span>
+          {/each}
+        </span>
+      </div>
     {/if}
 
     {#if lineView && focusTheme}
@@ -489,19 +516,122 @@
     flex: none;
   }
 
+  /* ---- Count-in countdown ---- */
   .countin {
     position: absolute;
-    inset-inline: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    text-align: center;
-    font-size: clamp(28px, 6vw, 56px);
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    color: var(--stage-ink);
-    opacity: 0.85;
+    inset: 0;
+    display: grid;
+    place-items: center;
     pointer-events: none;
     z-index: var(--z-dropdown);
+  }
+  /* Soft vignette so the number reads over any stage background. */
+  .countin::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      circle at center,
+      color-mix(in oklch, var(--stage-bg) 78%, transparent) 0%,
+      color-mix(in oklch, var(--stage-bg) 30%, transparent) 38%,
+      transparent 60%
+    );
+  }
+  .cd-num {
+    grid-area: 1 / 1;
+    position: relative;
+    font-size: clamp(140px, 34vh, 380px);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    text-shadow: 0 0 60px color-mix(in oklch, var(--accent) 55%, transparent);
+    animation: cd-pop 640ms var(--ease-out) both;
+  }
+  .cd-num.down {
+    color: var(--beat-down);
+    text-shadow: 0 0 70px color-mix(in oklch, var(--beat-down) 60%, transparent);
+  }
+  .cd-ring {
+    grid-area: 1 / 1;
+    align-self: center;
+    justify-self: center;
+    width: clamp(200px, 46vh, 520px);
+    aspect-ratio: 1;
+    border-radius: var(--r-full);
+    border: 3px solid color-mix(in oklch, var(--accent) 70%, transparent);
+    animation: cd-ring 660ms var(--ease-out) both;
+  }
+  .cd-ring.down {
+    border-color: color-mix(in oklch, var(--beat-down) 75%, transparent);
+  }
+  .cd-ring-2 {
+    animation-delay: 90ms;
+    opacity: 0.6;
+  }
+  /* Progress dots: how far through the count-in bar we are. */
+  .cd-dots {
+    grid-area: 1 / 1;
+    align-self: end;
+    justify-self: center;
+    display: flex;
+    gap: var(--sp-3);
+    margin-bottom: clamp(24px, 8vh, 90px);
+  }
+  .cd-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: var(--r-full);
+    background: color-mix(in oklch, var(--stage-ink) 22%, transparent);
+    transition: background var(--dur) var(--ease-out);
+  }
+  .cd-dot.filled {
+    background: var(--accent);
+    box-shadow: 0 0 12px color-mix(in oklch, var(--accent) 70%, transparent);
+  }
+
+  @keyframes cd-pop {
+    0% {
+      opacity: 0;
+      transform: scale(1.55);
+      filter: blur(14px);
+    }
+    45% {
+      opacity: 1;
+      transform: scale(1);
+      filter: blur(0);
+    }
+    100% {
+      opacity: 0.92;
+      transform: scale(1);
+      filter: blur(0);
+    }
+  }
+  @keyframes cd-ring {
+    0% {
+      opacity: 0.55;
+      transform: scale(0.42);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.25);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cd-num,
+    .cd-ring,
+    .cd-ring-2 {
+      animation: none;
+    }
+    .cd-num {
+      opacity: 0.95;
+    }
+    .cd-ring,
+    .cd-ring-2 {
+      opacity: 0.25;
+    }
   }
 
   .scroll {
