@@ -9,6 +9,7 @@
    * RTL-aware via logical properties and dir-following layout.
    */
   import { onMount } from 'svelte';
+  import { plural, NOUNS } from '$lib/i18n';
 
   interface Props {
     playing: boolean;
@@ -189,7 +190,7 @@
         oninput={(e) => onLineBars(+(e.currentTarget as HTMLInputElement).value)}
         aria-label="כל כמה תיבות לעבור שורה (לפי הקצב; 0 = ידני)"
       />
-      <span class="speed-val tnum">{lineBars <= 0 ? 'ידני' : `${lineBars} תיבות`}</span>
+      <span class="speed-val tnum">{lineBars <= 0 ? 'ידני' : plural(lineBars, NOUNS.bar)}</span>
     </label>
   {:else}
     <label class="speed">

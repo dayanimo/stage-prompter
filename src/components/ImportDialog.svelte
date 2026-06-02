@@ -1,6 +1,7 @@
 <script lang="ts">
   import { importSong, openSong } from '$stores/app';
   import { parseChart, songFromChart } from '$lib/importer';
+  import { plural, NOUNS } from '$lib/i18n';
   import Button from '$components/common/Button.svelte';
 
   interface Props {
@@ -83,7 +84,7 @@
     </label>
 
     <p class="stat" aria-live="polite">
-      זוהו <strong>{stats.chords}</strong> אקורדים על פני <strong>{stats.lines}</strong> שורות.
+      זוהו {plural(stats.chords, NOUNS.chord)} על פני {plural(stats.lines, NOUNS.line)}.
     </p>
 
     <p class="legal">
@@ -188,9 +189,6 @@
     margin: 0;
     font-size: var(--text-sm);
     color: var(--ink-2);
-  }
-  .stat strong {
-    color: var(--accent);
   }
   .legal {
     margin: 0;

@@ -74,7 +74,7 @@
             <li class="song-row">
               <button class="open" onclick={() => openSong(song.id)}>
                 <span class="title">{song.title}</span>
-                <span class="meta tnum">{song.bpm} BPM · {song.timeSig.beats}/{song.timeSig.unit}</span>
+                <bdi class="meta tnum" dir="ltr">{song.bpm} BPM · {song.timeSig.beats}/{song.timeSig.unit}</bdi>
               </button>
               <div class="row-actions">
                 <Button variant="ghost" size="sm" onclick={() => duplicateSong(song.id)}>שכפל</Button>

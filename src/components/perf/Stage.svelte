@@ -158,8 +158,12 @@
   });
 
   // Keep the engine's speed in sync with the reactive value.
+  // Read `speed` UNCONDITIONALLY first: `scroller?.setSpeed(speed)` alone would
+  // short-circuit on `scroller` when it's momentarily null, so `speed` would
+  // never be tracked and live slider changes would never reach the engine.
   $effect(() => {
-    scroller?.setSpeed(speed);
+    const nextSpeed = speed;
+    scroller?.setSpeed(nextSpeed);
   });
 
   // When the song changes, adopt its remembered speed and reset transport.

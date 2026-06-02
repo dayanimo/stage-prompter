@@ -18,6 +18,7 @@
     downloadSet,
     importFromFile,
   } from '$lib/exporter';
+  import { plural, NOUNS } from '$lib/i18n';
   import Button from '$components/common/Button.svelte';
   import { dndzone, type DndEvent } from 'svelte-dnd-action';
   import { flip } from 'svelte/animate';
@@ -87,7 +88,7 @@
     const count = set.songIds.length;
     const msg =
       count > 0
-        ? `למחוק את הסט "${set.name}"? (${count} שירים לא יימחקו)`
+        ? `למחוק את הסט "${set.name}"? (${plural(count, NOUNS.song)} לא יימחקו)`
         : `למחוק את הסט "${set.name}"?`;
     if (!confirm(msg)) return;
     if (activeSetId === set.id) activeSetId = null;

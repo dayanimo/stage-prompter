@@ -94,9 +94,16 @@ export function createAutoScroller(
   const api: AutoScroller = {
     play() {
       if (destroyed || playing) return;
-      // If already parked at the bottom, a play request should not silently
-      // re-fire onEnd; the caller is expected to reset scroll first.
-      if (isAtEnd()) return;
+      // If there's nothing to scroll (the song already fits the screen, or
+      // we're parked at the bottom), signal end on the next tick so the caller
+      // can auto-advance instead of silently stalling here forever.
+      if (isAtEnd()) {
+        endFired = false;
+        Promise.resolve().then(() => {
+          if (!destroyed) fireEnd();
+        });
+        return;
+      }
       playing = true;
       endFired = false;
       acc = 0;

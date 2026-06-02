@@ -37,7 +37,7 @@
 {#if song}
   <div class="edit">
     <header class="topbar">
-      <Button variant="ghost" size="sm" onclick={goLibrary}>← ספרייה</Button>
+      <Button variant="ghost" size="sm" onclick={goLibrary}>→ ספרייה</Button>
       <input class="title-input" value={song.title} oninput={onTitleInput} aria-label="Song title" />
       <Button variant="filled" size="sm" onclick={performThisSong}>נגן ▶</Button>
     </header>
