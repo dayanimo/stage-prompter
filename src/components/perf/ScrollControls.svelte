@@ -27,6 +27,8 @@
     onToggleLineView: () => void;
     lineIndex: number;
     lineCount: number;
+    lineBars: number;
+    onLineBars: (n: number) => void;
   }
 
   let {
@@ -46,7 +48,16 @@
     onToggleLineView,
     lineIndex,
     lineCount,
+    lineBars,
+    onLineBars,
   }: Props = $props();
+
+  // Bars-per-line options for 2-line mode (0 = manual / tap only).
+  const BAR_OPTIONS = [0, 1, 2, 4];
+  function cycleBars(): void {
+    const i = BAR_OPTIONS.indexOf(lineBars);
+    onLineBars(BAR_OPTIONS[(i + 1) % BAR_OPTIONS.length] ?? 2);
+  }
 
   const IDLE_MS = 2500;
   const SPEED_MIN = 0;
@@ -172,6 +183,18 @@
 
   {#if lineView}
     <span class="line-pos tnum" aria-label="מיקום שורה">שורה {lineIndex + 1}/{lineCount}</span>
+    <button
+      class="bars"
+      onclick={cycleBars}
+      title="כל כמה תיבות לעבור שורה אוטומטית (לפי הקצב)"
+      aria-label="קצב מעבר שורות"
+    >
+      {#if lineBars <= 0}
+        ✋ ידני
+      {:else}
+        ♩ {lineBars} {lineBars === 1 ? 'תיבה' : 'תיבות'}/שורה
+      {/if}
+    </button>
   {:else}
     <label class="speed">
       <span class="speed-label">מהירות</span>
@@ -353,6 +376,31 @@
     font-size: var(--text-base);
     color: var(--ink-2);
     white-space: nowrap;
+  }
+  .bars {
+    height: 44px;
+    padding-inline: var(--sp-4);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+    color: var(--ink-2);
+    cursor: pointer;
+    white-space: nowrap;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    transition:
+      background var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
+  }
+  .bars:hover {
+    background: var(--surface-3);
+    border-color: var(--border-2);
+    color: var(--ink);
+  }
+  .bars:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
   }
 
   .auto {

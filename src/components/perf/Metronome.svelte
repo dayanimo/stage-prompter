@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { TimeSignature } from '$lib/model';
-  import { createMetronome, type MetronomeHandle } from '$lib/metronome';
+  import { createMetronome, type MetronomeHandle, type BeatInfo } from '$lib/metronome';
 
   interface Props {
     bpm: number;
@@ -9,6 +9,7 @@
     click: boolean;
     countInBars?: number;
     compact?: boolean;
+    onBeat?: (info: BeatInfo) => void;
   }
 
   let {
@@ -18,6 +19,7 @@
     click,
     countInBars = 0,
     compact = false,
+    onBeat,
   }: Props = $props();
 
   // Index of the currently-lit beat within the bar (-1 = none lit).
@@ -55,6 +57,7 @@
       onBeat: (info) => {
         active = info.beat;
         counting = info.countingIn;
+        onBeat?.(info);
       },
     });
     handle = h;

@@ -24,6 +24,8 @@
   import ScrollControls from '$components/perf/ScrollControls.svelte';
   import { createAutoScroller, type AutoScroller } from '$lib/autoscroll';
   import { installShortcuts } from '$lib/shortcuts';
+  import type { BeatInfo } from '$lib/metronome';
+  import { untrack } from 'svelte';
 
   // ---- Active song resolution ------------------------------------------------
   const songs = $derived($setSongs);
@@ -77,8 +79,14 @@
       : null,
   );
 
+  // Bars to hold each line before the beat auto-advances it (0 = manual only).
+  const lineBars = $derived($settings.lineBars);
+  // Beats counted since the current line appeared (for tempo-synced advancing).
+  let beatTick = 0;
+
   function nextLineStep(): void {
     if (!song) return;
+    beatTick = 0;
     if (lineIndex < song.lines.length - 1) {
       lineIndex += 1;
     } else if (index < songs.length - 1) {
@@ -88,8 +96,39 @@
   }
 
   function prevLineStep(): void {
+    beatTick = 0;
     if (lineIndex > 0) lineIndex -= 1;
     else if (index > 0) go(-1);
+  }
+
+  // Called on every metronome beat. In 2-line mode it advances one line every
+  // `lineBars` bars so the view follows the song's tempo hands-free.
+  function handleBeat(info: BeatInfo): void {
+    if (!lineView || !playing || info.countingIn || lineBars <= 0) return;
+    beatTick += 1;
+    const perLine = Math.max(1, lineBars * Math.max(1, song?.timeSig.beats ?? 4));
+    if (beatTick >= perLine) {
+      beatTick = 0;
+      autoAdvanceLine();
+    }
+  }
+
+  function autoAdvanceLine(): void {
+    if (!song) return;
+    if (lineIndex < song.lines.length - 1) {
+      lineIndex += 1;
+    } else if ($settings.autoAdvance && index < songs.length - 1) {
+      // End of song: roll into the next one and keep the beat going.
+      transitionTo(index + 1);
+      clearAdvance();
+      advanceTimer = setTimeout(() => {
+        advanceTimer = null;
+        beginPlay();
+      }, 500);
+    } else {
+      // End of the set: stop.
+      playing = false;
+    }
   }
 
   let scrollEl: HTMLDivElement | null = $state(null);
@@ -103,10 +142,14 @@
   $effect(() => {
     const el = scrollEl;
     if (!el) return;
+    // Seed with the current speed WITHOUT tracking it, so live speed changes
+    // don't tear down and recreate the scroller (which would halt scrolling).
+    // Speed updates flow through the dedicated setSpeed effect below.
     const s = createAutoScroller(el, {
-      speed,
+      speed: untrack(() => speed),
       onEnd: handleEnd,
     });
+    if (untrack(() => playing)) s.play();
     scroller = s;
     return () => {
       s.destroy();
@@ -132,6 +175,7 @@
     playing = false;
     countingIn = false;
     lineIndex = 0;
+    beatTick = 0;
     if (scrollEl) scrollEl.scrollTop = 0;
   });
 
@@ -161,6 +205,7 @@
 
   function beginPlay(): void {
     if (!song) return;
+    beatTick = 0;
     const bars = $settings.countInBars ?? 0;
     if (bars > 0) {
       countingIn = true;
@@ -331,6 +376,7 @@
         running={metroRunning}
         click={$settings.clickEnabled}
         countInBars={$settings.countInBars}
+        onBeat={handleBeat}
       />
     </div>
 
@@ -406,6 +452,11 @@
         })}
       lineIndex={lineIndex}
       lineCount={lineCount}
+      lineBars={$settings.lineBars}
+      onLineBars={(n) =>
+        updateSettings((s) => {
+          s.lineBars = n;
+        })}
     />
   </div>
 {:else}

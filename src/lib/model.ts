@@ -96,6 +96,7 @@ export interface AppSettings {
   chromeDir: Direction; // app chrome direction default
   autoAdvance: boolean; // play the set song-after-song automatically
   lineView: boolean; // performance: show 2 big lines at a time instead of scrolling
+  lineBars: number; // 2-line mode: bars to hold each line before auto-advancing (0 = manual)
 }
 
 // ---- Defaults & factories --------------------------------------------------
@@ -118,6 +119,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   chromeDir: 'rtl',
   autoAdvance: true,
   lineView: false,
+  lineBars: 2,
 };
 
 /** Time-ordered, URL-safe unique id. Avoids crypto dependency assumptions. */
