@@ -1,56 +1,409 @@
 <script lang="ts">
-  // PLACEHOLDER — Track F replaces this with the full performance stage.
-  import { setSongs, session, settings, goLibrary, currentSong } from '$stores/app';
-  import { resolveTheme } from '$lib/model';
+  /**
+   * Track F — full-screen performance stage.
+   *
+   * Renders the active set's current song as a centered single column of
+   * non-editable SongLines on the song's resolved theme background. Drives the
+   * visual metronome, rAF auto-scroll, the auto-hiding transport bar, and the
+   * keyboard shortcuts. On reaching the bottom it auto-advances to the next
+   * song (resetting scroll); at the last song it simply stops. Portrait and
+   * landscape are both first-class — the column adapts to viewport width.
+   */
+  import { setSongs, session, settings, currentSong, goLibrary, updateSong } from '$stores/app';
+  import { resolveTheme, type Song } from '$lib/model';
   import SongLine from '$components/common/SongLine.svelte';
   import Metronome from '$components/perf/Metronome.svelte';
   import ScrollControls from '$components/perf/ScrollControls.svelte';
+  import { createAutoScroller, type AutoScroller } from '$lib/autoscroll';
+  import { installShortcuts } from '$lib/shortcuts';
 
+  // ---- Active song resolution ------------------------------------------------
   const songs = $derived($setSongs);
-  const index = $derived($session.perfIndex);
-  const song = $derived(songs[index] ?? $currentSong ?? null);
+  const index = $derived(
+    songs.length ? Math.min(Math.max($session.perfIndex, 0), songs.length - 1) : 0,
+  );
+  const song = $derived<Song | null>(songs[index] ?? $currentSong ?? null);
   const theme = $derived(song ? resolveTheme(song, $settings) : null);
+  const dir = $derived(song?.dir === 'ltr' ? 'ltr' : 'rtl');
+  const isRtl = $derived(dir === 'rtl');
+
+  const songCount = $derived(songs.length || ($currentSong ? 1 : 0));
+
+  // ---- Transport state -------------------------------------------------------
+  const FONT_STEP = 4;
+  const FONT_MIN = 16;
+  const FONT_MAX = 160;
+  const SPEED_STEP = 5;
+  const SPEED_MIN = 0;
+  const SPEED_MAX = 200;
+  const DEFAULT_SPEED = 40;
 
   let playing = $state(false);
-  let speed = $state(40);
+  let speed = $state(DEFAULT_SPEED);
+  let countingIn = $state(false);
 
-  function go(delta: number) {
-    const next = index + delta;
-    if (next >= 0 && next < songs.length) session.update((s) => ({ ...s, perfIndex: next }));
+  let scrollEl: HTMLDivElement | null = $state(null);
+  let scroller: AutoScroller | null = null;
+
+  // Pending speed persist (debounced) to avoid writing on every slider tick.
+  let speedSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // ---- Auto-scroller lifecycle ----------------------------------------------
+  // Create the scroller once the scroll element exists; recreate if it changes.
+  $effect(() => {
+    const el = scrollEl;
+    if (!el) return;
+    const s = createAutoScroller(el, {
+      speed,
+      onEnd: handleEnd,
+    });
+    scroller = s;
+    return () => {
+      s.destroy();
+      if (scroller === s) scroller = null;
+    };
+  });
+
+  // Keep the engine's speed in sync with the reactive value.
+  $effect(() => {
+    scroller?.setSpeed(speed);
+  });
+
+  // When the song changes, adopt its remembered speed and reset transport.
+  let lastSongId: string | null = null;
+  $effect(() => {
+    const id = song?.id ?? null;
+    if (id === lastSongId) return;
+    lastSongId = id;
+    // Pull persisted per-song speed, falling back to the default.
+    if (song && typeof song.scrollSpeed === 'number') speed = song.scrollSpeed;
+    else speed = DEFAULT_SPEED;
+    // Fresh song: stop and return to top.
+    playing = false;
+    countingIn = false;
+    if (scrollEl) scrollEl.scrollTop = 0;
+  });
+
+  // ---- Keyboard shortcuts ----------------------------------------------------
+  $effect(() => {
+    const rtl = isRtl;
+    const uninstall = installShortcuts({
+      toggleScroll: togglePlay,
+      next: () => go(1),
+      prev: () => go(-1),
+      fontUp: () => bumpFont(FONT_STEP),
+      fontDown: () => bumpFont(-FONT_STEP),
+      speedUp: () => bumpSpeed(SPEED_STEP),
+      speedDown: () => bumpSpeed(-SPEED_STEP),
+      fullscreen: toggleFullscreen,
+      exit: exit,
+      rtl,
+    });
+    return uninstall;
+  });
+
+  // ---- Count-in then scroll --------------------------------------------------
+  let countInTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function beginPlay(): void {
+    if (!song) return;
+    const bars = $settings.countInBars ?? 0;
+    if (bars > 0) {
+      countingIn = true;
+      playing = true; // metronome runs during count-in; scroll waits
+      const beats = bars * Math.max(1, song.timeSig.beats);
+      const ms = (60 / Math.max(1, song.bpm)) * 1000 * beats;
+      clearCountIn();
+      countInTimer = setTimeout(() => {
+        countingIn = false;
+        countInTimer = null;
+        if (playing) scroller?.play();
+      }, ms);
+    } else {
+      countingIn = false;
+      playing = true;
+      scroller?.play();
+    }
   }
+
+  function clearCountIn(): void {
+    if (countInTimer) {
+      clearTimeout(countInTimer);
+      countInTimer = null;
+    }
+  }
+
+  function togglePlay(): void {
+    if (playing) {
+      playing = false;
+      countingIn = false;
+      clearCountIn();
+      scroller?.pause();
+    } else {
+      // If parked at the bottom, restart from the top.
+      if (scroller?.atEnd() && scrollEl) scrollEl.scrollTop = 0;
+      beginPlay();
+    }
+  }
+
+  // ---- Navigation ------------------------------------------------------------
+  function go(delta: number): void {
+    const target = index + delta;
+    if (target < 0 || target >= songs.length) return;
+    transitionTo(target);
+  }
+
+  function transitionTo(target: number): void {
+    playing = false;
+    countingIn = false;
+    clearCountIn();
+    scroller?.pause();
+    if (scrollEl) scrollEl.scrollTop = 0;
+    session.update((s) => ({ ...s, perfIndex: target }));
+  }
+
+  function handleEnd(): void {
+    // Auto-advance to the next song; at the last song, just stop.
+    if (index < songs.length - 1) {
+      transitionTo(index + 1);
+      // Brief transition, then resume playback on the new song.
+      setTimeout(() => {
+        beginPlay();
+      }, 600);
+    } else {
+      playing = false;
+      countingIn = false;
+    }
+  }
+
+  // ---- Speed -----------------------------------------------------------------
+  function setSpeed(n: number): void {
+    speed = Math.min(SPEED_MAX, Math.max(SPEED_MIN, n));
+    persistSpeed();
+  }
+
+  function bumpSpeed(delta: number): void {
+    setSpeed(speed + delta);
+  }
+
+  function persistSpeed(): void {
+    if (!song) return;
+    const id = song.id;
+    const value = speed;
+    if (speedSaveTimer) clearTimeout(speedSaveTimer);
+    speedSaveTimer = setTimeout(() => {
+      speedSaveTimer = null;
+      updateSong(id, (s) => {
+        s.scrollSpeed = value;
+      });
+    }, 400);
+  }
+
+  // ---- Font sizing (scales the song theme sizes) -----------------------------
+  function bumpFont(delta: number): void {
+    if (!song || !theme) return;
+    const id = song.id;
+    const baseLyric = theme.lyricSize;
+    const nextLyric = Math.min(FONT_MAX, Math.max(FONT_MIN, baseLyric + delta));
+    if (nextLyric === baseLyric) return;
+    const ratio = nextLyric / baseLyric;
+    const nextChord = Math.round(Math.min(FONT_MAX, Math.max(FONT_MIN, theme.chordSize * ratio)));
+    const nextNote = Math.round(Math.min(FONT_MAX, Math.max(FONT_MIN, theme.noteSize * ratio)));
+    updateSong(id, (s) => {
+      s.theme = {
+        ...(s.theme ?? {}),
+        lyricSize: nextLyric,
+        chordSize: nextChord,
+        noteSize: nextNote,
+      };
+    });
+  }
+
+  // ---- Fullscreen ------------------------------------------------------------
+  function toggleFullscreen(): void {
+    const doc = document;
+    if (doc.fullscreenElement) {
+      doc.exitFullscreen?.();
+    } else {
+      doc.documentElement.requestFullscreen?.();
+    }
+  }
+
+  // ---- Exit ------------------------------------------------------------------
+  function exit(): void {
+    playing = false;
+    countingIn = false;
+    clearCountIn();
+    scroller?.pause();
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    goLibrary();
+  }
+
+  // Metronome runs while playing (incl. count-in).
+  const metroRunning = $derived(playing);
 </script>
 
 {#if song && theme}
-  <div class="stage" style="--bg: {theme.bg}">
-    <div class="metro-wrap"><Metronome bpm={song.bpm} timeSig={song.timeSig} running={playing} click={$settings.clickEnabled} /></div>
-    <div class="scroll">
-      <div class="content" dir={song.dir === 'ltr' ? 'ltr' : 'rtl'}>
+  <div
+    class="stage"
+    style="--stage-bg: {theme.bg}; --stage-ink: {theme.text}; --stage-note: {theme.note};"
+  >
+    <div class="metro-wrap" aria-hidden={!metroRunning}>
+      <Metronome
+        bpm={song.bpm}
+        timeSig={song.timeSig}
+        running={metroRunning}
+        click={$settings.clickEnabled}
+        countInBars={$settings.countInBars}
+      />
+    </div>
+
+    {#if countingIn}
+      <div class="countin" role="status">ספירה לתוך…</div>
+    {/if}
+
+    <div class="scroll" bind:this={scrollEl}>
+      <div class="content" {dir}>
         {#each song.lines as line (line.id)}
-          <SongLine {line} {theme} transpose={song.transpose ?? 0} accidental={$settings.accidentalPref} dir={song.dir} />
+          <SongLine
+            {line}
+            {theme}
+            transpose={song.transpose ?? 0}
+            accidental={$settings.accidentalPref}
+            dir={song.dir}
+          />
         {/each}
+        <div class="tail" aria-hidden="true"></div>
       </div>
     </div>
+
     <ScrollControls
       {playing}
       {speed}
-      onToggle={() => (playing = !playing)}
-      onSpeed={(n) => (speed = n)}
+      onToggle={togglePlay}
+      onSpeed={setSpeed}
       onNext={() => go(1)}
       onPrev={() => go(-1)}
-      onExit={goLibrary}
+      onExit={exit}
       songIndex={index}
-      songCount={songs.length}
+      songCount={songCount}
       songTitle={song.title}
     />
   </div>
 {:else}
-  <div class="empty"><p>אין שירים בסט.</p><button onclick={goLibrary}>חזרה</button></div>
+  <div class="empty">
+    <p>אין שירים בסט.</p>
+    <button class="back" onclick={goLibrary}>חזרה לספרייה</button>
+  </div>
 {/if}
 
 <style>
-  .stage { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; }
-  .metro-wrap { display: flex; justify-content: center; padding: 16px; }
-  .scroll { flex: 1; overflow: auto; }
-  .content { max-width: 1100px; margin: 0 auto; padding: 40px 24px 160px; display: flex; flex-direction: column; gap: 14px; }
-  .empty { position: fixed; inset: 0; display: grid; place-content: center; gap: 16px; text-align: center; }
+  .stage {
+    position: fixed;
+    inset: 0;
+    background: var(--stage-bg);
+    color: var(--stage-ink);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .metro-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--sp-5) var(--sp-5) var(--sp-3);
+    flex: none;
+  }
+
+  .countin {
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    text-align: center;
+    font-size: clamp(28px, 6vw, 56px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--stage-ink);
+    opacity: 0.85;
+    pointer-events: none;
+    z-index: var(--z-dropdown);
+  }
+
+  .scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+    /* Smooth-but-functional; the rAF engine handles motion. Hide scrollbar. */
+    scrollbar-width: none;
+  }
+  .scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .content {
+    width: min(1100px, 92vw);
+    margin-inline: auto;
+    padding-block: clamp(24px, 8vh, 80px) 0;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(8px, 1.6vh, 20px);
+    text-align: start;
+  }
+
+  /* Trailing space so the last line can scroll clear of the transport bar. */
+  .tail {
+    flex: none;
+    height: 50vh;
+    min-height: 200px;
+  }
+
+  .empty {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    gap: var(--sp-5);
+    text-align: center;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  .empty p {
+    margin: 0;
+    font-size: var(--text-md);
+    color: var(--ink-2);
+  }
+  .back {
+    justify-self: center;
+    height: 44px;
+    padding-inline: var(--sp-6);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+    color: var(--ink);
+    cursor: pointer;
+    transition:
+      background var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+  .back:hover {
+    background: var(--surface-3);
+    border-color: var(--border-2);
+  }
+  .back:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* Landscape on short viewports: tighten the top chrome to maximize lyrics. */
+  @media (orientation: landscape) and (max-height: 560px) {
+    .metro-wrap {
+      padding: var(--sp-3) var(--sp-4) var(--sp-2);
+    }
+    .content {
+      padding-block-start: clamp(12px, 4vh, 32px);
+    }
+  }
 </style>
