@@ -23,6 +23,10 @@
     songTitle: string;
     autoAdvance: boolean;
     onToggleAutoAdvance: () => void;
+    lineView: boolean;
+    onToggleLineView: () => void;
+    lineIndex: number;
+    lineCount: number;
   }
 
   let {
@@ -38,6 +42,10 @@
     songTitle,
     autoAdvance,
     onToggleAutoAdvance,
+    lineView,
+    onToggleLineView,
+    lineIndex,
+    lineCount,
   }: Props = $props();
 
   const IDLE_MS = 2500;
@@ -139,8 +147,14 @@
       class="ctl play"
       onclick={onToggle}
       aria-pressed={playing}
-      aria-label={playing ? 'השהיית גלילה' : 'התחלת גלילה'}
-      title={playing ? 'השהה (רווח)' : 'נגן (רווח)'}
+      aria-label={lineView
+        ? playing
+          ? 'עצור מטרונום'
+          : 'הפעל מטרונום'
+        : playing
+          ? 'השהיית גלילה'
+          : 'התחלת גלילה'}
+      title={lineView ? 'מטרונום' : playing ? 'השהה (רווח)' : 'נגן (רווח)'}
     >
       {#if playing}
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zM13 5h3v14h-3z" /></svg>
@@ -156,19 +170,35 @@
     </button>
   </div>
 
-  <label class="speed">
-    <span class="speed-label">מהירות</span>
-    <input
-      type="range"
-      min={SPEED_MIN}
-      max={SPEED_MAX}
-      step={SPEED_STEP}
-      value={speed}
-      oninput={(e) => onSpeed(+(e.currentTarget as HTMLInputElement).value)}
-      aria-label="מהירות גלילה"
-    />
-    <span class="speed-val tnum">{Math.round(speed)}</span>
-  </label>
+  {#if lineView}
+    <span class="line-pos tnum" aria-label="מיקום שורה">שורה {lineIndex + 1}/{lineCount}</span>
+  {:else}
+    <label class="speed">
+      <span class="speed-label">מהירות</span>
+      <input
+        type="range"
+        min={SPEED_MIN}
+        max={SPEED_MAX}
+        step={SPEED_STEP}
+        value={speed}
+        oninput={(e) => onSpeed(+(e.currentTarget as HTMLInputElement).value)}
+        aria-label="מהירות גלילה"
+      />
+      <span class="speed-val tnum">{Math.round(speed)}</span>
+    </label>
+  {/if}
+
+  <button
+    class="auto"
+    class:on={lineView}
+    role="switch"
+    aria-checked={lineView}
+    onclick={onToggleLineView}
+    title="תצוגת 2 שורות גדולות"
+  >
+    <span class="auto-dot" aria-hidden="true"></span>
+    <span class="auto-label">2 שורות</span>
+  </button>
 
   <button
     class="auto"
@@ -318,6 +348,11 @@
     color: var(--ink-2);
     min-width: 3ch;
     text-align: end;
+  }
+  .line-pos {
+    font-size: var(--text-base);
+    color: var(--ink-2);
+    white-space: nowrap;
   }
 
   .auto {

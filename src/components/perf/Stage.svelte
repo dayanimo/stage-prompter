@@ -57,6 +57,41 @@
   let scrollStartedAt = 0;
   let advanceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // ---- 2-line focus mode -----------------------------------------------------
+  const lineView = $derived($settings.lineView);
+  // How much bigger lyrics/chords/notes get in focus mode.
+  const FOCUS_SCALE = 1.7;
+  const FOCUS_CAP = 132;
+  let lineIndex = $state(0);
+  const lineCount = $derived(song?.lines.length ?? 0);
+  const activeLine = $derived(song?.lines[lineIndex] ?? null);
+  const nextLine = $derived(song?.lines[lineIndex + 1] ?? null);
+  const focusTheme = $derived(
+    theme
+      ? {
+          ...theme,
+          lyricSize: Math.min(FOCUS_CAP, Math.round(theme.lyricSize * FOCUS_SCALE)),
+          chordSize: Math.min(FOCUS_CAP, Math.round(theme.chordSize * FOCUS_SCALE)),
+          noteSize: Math.min(FOCUS_CAP, Math.round(theme.noteSize * FOCUS_SCALE)),
+        }
+      : null,
+  );
+
+  function nextLineStep(): void {
+    if (!song) return;
+    if (lineIndex < song.lines.length - 1) {
+      lineIndex += 1;
+    } else if (index < songs.length - 1) {
+      // Past the last line: roll to the next song.
+      transitionTo(index + 1);
+    }
+  }
+
+  function prevLineStep(): void {
+    if (lineIndex > 0) lineIndex -= 1;
+    else if (index > 0) go(-1);
+  }
+
   let scrollEl: HTMLDivElement | null = $state(null);
   let scroller: AutoScroller | null = null;
 
@@ -96,20 +131,24 @@
     // Fresh song: stop and return to top.
     playing = false;
     countingIn = false;
+    lineIndex = 0;
     if (scrollEl) scrollEl.scrollTop = 0;
   });
 
   // ---- Keyboard shortcuts ----------------------------------------------------
   $effect(() => {
     const rtl = isRtl;
+    const focus = lineView;
     const uninstall = installShortcuts({
-      toggleScroll: togglePlay,
+      // In focus mode, Space and the vertical arrows page lines instead of
+      // toggling/scrolling; song nav stays on the horizontal arrows.
+      toggleScroll: focus ? nextLineStep : togglePlay,
       next: () => go(1),
       prev: () => go(-1),
       fontUp: () => bumpFont(FONT_STEP),
       fontDown: () => bumpFont(-FONT_STEP),
-      speedUp: () => bumpSpeed(SPEED_STEP),
-      speedDown: () => bumpSpeed(-SPEED_STEP),
+      speedUp: focus ? prevLineStep : () => bumpSpeed(SPEED_STEP),
+      speedDown: focus ? nextLineStep : () => bumpSpeed(-SPEED_STEP),
       fullscreen: toggleFullscreen,
       exit: exit,
       rtl,
@@ -299,20 +338,50 @@
       <div class="countin" role="status">ספירה לתוך…</div>
     {/if}
 
-    <div class="scroll" bind:this={scrollEl}>
-      <div class="content" {dir}>
-        {#each song.lines as line (line.id)}
-          <SongLine
-            {line}
-            {theme}
-            transpose={song.transpose ?? 0}
-            accidental={$settings.accidentalPref}
-            dir={song.dir}
-          />
-        {/each}
-        <div class="tail" aria-hidden="true"></div>
+    {#if lineView && focusTheme}
+      <!-- 2-line focus: big active line + dimmed preview; tap/Space advances. -->
+      <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
+      <div class="focus" {dir} onclick={nextLineStep} role="presentation">
+        {#if activeLine}
+          <div class="focus-line active">
+            <SongLine
+              line={activeLine}
+              theme={focusTheme}
+              transpose={song.transpose ?? 0}
+              accidental={$settings.accidentalPref}
+              dir={song.dir}
+            />
+          </div>
+        {/if}
+        {#if nextLine}
+          <div class="focus-line preview" aria-hidden="true">
+            <SongLine
+              line={nextLine}
+              theme={focusTheme}
+              transpose={song.transpose ?? 0}
+              accidental={$settings.accidentalPref}
+              dir={song.dir}
+            />
+          </div>
+        {/if}
+        <div class="focus-pos tnum" aria-hidden="true">{lineIndex + 1}/{lineCount}</div>
       </div>
-    </div>
+    {:else}
+      <div class="scroll" bind:this={scrollEl}>
+        <div class="content" {dir}>
+          {#each song.lines as line (line.id)}
+            <SongLine
+              {line}
+              {theme}
+              transpose={song.transpose ?? 0}
+              accidental={$settings.accidentalPref}
+              dir={song.dir}
+            />
+          {/each}
+          <div class="tail" aria-hidden="true"></div>
+        </div>
+      </div>
+    {/if}
 
     <ScrollControls
       {playing}
@@ -330,6 +399,13 @@
         updateSettings((s) => {
           s.autoAdvance = !s.autoAdvance;
         })}
+      {lineView}
+      onToggleLineView={() =>
+        updateSettings((s) => {
+          s.lineView = !s.lineView;
+        })}
+      lineIndex={lineIndex}
+      lineCount={lineCount}
     />
   </div>
 {:else}
@@ -400,6 +476,49 @@
     flex: none;
     height: 50vh;
     min-height: 200px;
+  }
+
+  /* ---- 2-line focus mode ---- */
+  .focus {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(20px, 6vh, 64px);
+    padding: clamp(24px, 6vh, 80px) clamp(20px, 5vw, 72px) 12vh;
+    cursor: pointer;
+    position: relative;
+    text-align: center;
+    user-select: none;
+  }
+  .focus-line {
+    width: min(1200px, 94vw);
+    display: flex;
+    justify-content: center;
+  }
+  .focus-line.active {
+    color: var(--stage-ink);
+  }
+  /* Upcoming line: dimmed and a touch smaller so the eye knows what's current. */
+  .focus-line.preview {
+    opacity: 0.4;
+    transform: scale(0.82);
+    transform-origin: center;
+  }
+  .focus-pos {
+    position: absolute;
+    bottom: clamp(12px, 3vh, 28px);
+    inset-inline-end: clamp(16px, 4vw, 40px);
+    font-size: var(--text-sm);
+    color: var(--stage-ink);
+    opacity: 0.4;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .focus-line.preview {
+      transform: none;
+    }
   }
 
   .empty {
