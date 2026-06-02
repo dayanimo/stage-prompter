@@ -181,8 +181,8 @@
     resize: vertical;
     font-family: var(--font-mono, monospace);
     line-height: 1.5;
-    white-space: pre;
-    direction: ltr;
+    white-space: pre-wrap;
+    direction: rtl;
     text-align: start;
   }
   .stat {
