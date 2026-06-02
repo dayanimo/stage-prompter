@@ -308,6 +308,12 @@
     fill: none;
     stroke: currentColor;
   }
+  /* In RTL (Hebrew), mirror the skip-prev / skip-next chevrons so "previous"
+     points right (back) and "next" points left, matching the reading flow.
+     The play/pause glyph is a universal symbol and stays as-is. */
+  .transport .ctl:not(.play):dir(rtl) svg {
+    transform: scaleX(-1);
+  }
 
   .ctl:hover:not(:disabled) {
     background: var(--surface-3);
