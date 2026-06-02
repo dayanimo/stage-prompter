@@ -152,7 +152,7 @@
           bind:this={rootButtons[i]}
           onclick={() => pickRoot(r)}
         >
-          {spell(r, accidental)}
+          {r}
         </button>
       {/each}
     </div>

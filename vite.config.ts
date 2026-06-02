@@ -4,6 +4,10 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
+  server: {
+    // Allow the containerized test browser to reach the dev server.
+    allowedHosts: ['host.docker.internal', 'localhost'],
+  },
   plugins: [
     svelte(),
     VitePWA({
@@ -24,8 +28,7 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'any',
         icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
         ],
       },
     }),

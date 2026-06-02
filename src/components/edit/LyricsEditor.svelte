@@ -145,7 +145,7 @@
     pendingFocus = null;
   });
 
-  let inputs: Record<string, HTMLInputElement> = {};
+  let inputs: Record<string, HTMLInputElement> = $state({});
 
   // ---- Notes -----------------------------------------------------------------
 
