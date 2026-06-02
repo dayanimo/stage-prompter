@@ -92,9 +92,13 @@
     align-items: center;
   }
 
+  .metro {
+    gap: var(--sp-4);
+  }
+
   .light {
-    width: 16px;
-    height: 16px;
+    width: 28px;
+    height: 28px;
     border-radius: var(--r-full);
     background: var(--beat-idle);
     /* Brightness/scale encode the downbeat in addition to hue (color-blind safe). */
@@ -106,8 +110,8 @@
 
   /* Downbeat cell is always larger so position+size mark beat 1 even unlit. */
   .light.down {
-    width: 22px;
-    height: 22px;
+    width: 38px;
+    height: 38px;
   }
 
   /* Off-beats: blue when lit. */

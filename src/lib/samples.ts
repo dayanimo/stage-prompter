@@ -53,6 +53,8 @@ function buildSamples(): { songs: Song[]; set: SetList } {
   const E7 = c('E', '7');
   const G = c('G', 'maj');
   const D7 = c('D', '7');
+  const F = c('F', 'maj');
+  const Cc = c('C', 'maj');
 
   // הבה נגילה — traditional hora, key Am (Am / Dm / E7)
   const hava = song('הבה נגילה', 120, 4, [
@@ -93,7 +95,32 @@ function buildSamples(): { songs: Song[]; set: SetList } {
     line([['חי חי ו', D7], ['קיים', G]]),
   ]);
 
-  const songs = [hava, hevenu, david];
+  // אדון עולם — liturgical, public domain. A longer song (needs scrolling),
+  // with a classic minor-key progression (Am / Dm / E7 / F / C / G).
+  const adon = song('אדון עולם', 92, 4, [
+    line([['אֲדוֹן עוֹלָם אֲשֶׁר מָלַךְ', Am]], { section: 'verse' }),
+    line([['בְּטֶרֶם כָּל ', Dm], ['יְצִיר נִבְרָא', E7]]),
+    line([['לְעֵת נַעֲשָׂה ', Am], ['בְחֶפְצוֹ כֹּל', F]]),
+    line([['אֲזַי מֶלֶךְ ', E7], ['שְׁמוֹ נִקְרָא', Am]]),
+    line([['וְאַחֲרֵי כִּכְלוֹת הַכֹּל', Dm]], { section: 'verse' }),
+    line([['לְבַדּוֹ ', G], ['יִמְלוֹךְ נוֹרָא', Cc]]),
+    line([['וְהוּא הָיָה ', F], ['וְהוּא הֹוֶה', G]]),
+    line([['וְהוּא יִהְיֶה ', E7], ['בְּתִפְאָרָה', Am]]),
+    line([['וְהוּא אֶחָד וְאֵין שֵׁנִי', Am]], { section: 'verse' }),
+    line([['לְהַמְשִׁיל לוֹ ', Dm], ['לְהַחְבִּירָה', E7]]),
+    line([['בְּלִי רֵאשִׁית ', Am], ['בְּלִי תַכְלִית', F]]),
+    line([['וְלוֹ הָעֹז ', E7], ['וְהַמִּשְׂרָה', Am]]),
+    line([['וְהוּא אֵלִי וְחַי גּוֹאֲלִי', Dm]], { section: 'chorus' }),
+    line([['וְצוּר חֶבְלִי ', G], ['בְּעֵת צָרָה', Cc]]),
+    line([['וְהוּא נִסִּי ', F], ['וּמָנוֹס לִי', G]]),
+    line([['מְנָת כּוֹסִי ', E7], ['בְּיוֹם אֶקְרָא', Am]]),
+    line([['בְּיָדוֹ אַפְקִיד רוּחִי', Am]], { section: 'outro' }),
+    line([['בְּעֵת אִישָׁן ', Dm], ['וְאָעִירָה', E7]]),
+    line([['וְעִם רוּחִי ', F], ['גְּוִיָּתִי', Cc]]),
+    line([['ה׳ לִי ', E7], ['וְלֹא אִירָא', Am]]),
+  ]);
+
+  const songs = [adon, hava, hevenu, david];
   const now = Date.now();
   const set: SetList = {
     id: uid('st_'),

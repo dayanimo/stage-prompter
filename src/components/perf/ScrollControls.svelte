@@ -21,6 +21,8 @@
     songIndex: number;
     songCount: number;
     songTitle: string;
+    autoAdvance: boolean;
+    onToggleAutoAdvance: () => void;
   }
 
   let {
@@ -34,6 +36,8 @@
     songIndex,
     songCount,
     songTitle,
+    autoAdvance,
+    onToggleAutoAdvance,
   }: Props = $props();
 
   const IDLE_MS = 2500;
@@ -165,6 +169,18 @@
     />
     <span class="speed-val tnum">{Math.round(speed)}</span>
   </label>
+
+  <button
+    class="auto"
+    class:on={autoAdvance}
+    role="switch"
+    aria-checked={autoAdvance}
+    onclick={onToggleAutoAdvance}
+    title="נגן שיר אחרי שיר אוטומטית"
+  >
+    <span class="auto-dot" aria-hidden="true"></span>
+    <span class="auto-label">רצף אוטומטי</span>
+  </button>
 
   <div class="meta">
     <span class="song-title">{songTitle}</span>
@@ -304,6 +320,55 @@
     text-align: end;
   }
 
+  .auto {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-3);
+    height: 44px;
+    padding-inline: var(--sp-4);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+    color: var(--ink-2);
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+      background var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
+  }
+  .auto:hover {
+    background: var(--surface-3);
+    border-color: var(--border-2);
+  }
+  .auto .auto-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: var(--r-full);
+    background: var(--beat-idle);
+    box-shadow: none;
+    transition:
+      background var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
+  }
+  .auto.on {
+    color: var(--accent);
+    border-color: color-mix(in oklch, var(--accent) 50%, transparent);
+    background: var(--accent-soft);
+  }
+  .auto.on .auto-dot {
+    background: var(--accent);
+    box-shadow: 0 0 10px color-mix(in oklch, var(--accent) 75%, transparent);
+  }
+  .auto-label {
+    font-size: var(--text-sm);
+    font-weight: 500;
+  }
+  .auto:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
   .meta {
     display: flex;
     align-items: baseline;
@@ -311,6 +376,18 @@
     margin-inline-start: auto;
     min-width: 0;
     text-align: start;
+  }
+
+  /* On narrow screens drop the toggle's text label, keep the dot. */
+  @media (max-width: 720px) {
+    .auto-label {
+      display: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .auto .auto-dot {
+      transition: background var(--dur-fast) linear;
+    }
   }
   .song-title {
     font-size: var(--text-md);

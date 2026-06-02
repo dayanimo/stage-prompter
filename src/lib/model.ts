@@ -94,6 +94,7 @@ export interface AppSettings {
   clickEnabled: boolean;
   countInBars: number; // 0 = off
   chromeDir: Direction; // app chrome direction default
+  autoAdvance: boolean; // play the set song-after-song automatically
 }
 
 // ---- Defaults & factories --------------------------------------------------
@@ -114,6 +115,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   clickEnabled: false,
   countInBars: 1,
   chromeDir: 'rtl',
+  autoAdvance: true,
 };
 
 /** Time-ordered, URL-safe unique id. Avoids crypto dependency assumptions. */

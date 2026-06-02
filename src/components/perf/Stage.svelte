@@ -9,7 +9,15 @@
    * song (resetting scroll); at the last song it simply stops. Portrait and
    * landscape are both first-class — the column adapts to viewport width.
    */
-  import { setSongs, session, settings, currentSong, goLibrary, updateSong } from '$stores/app';
+  import {
+    setSongs,
+    session,
+    settings,
+    currentSong,
+    goLibrary,
+    updateSong,
+    updateSettings,
+  } from '$stores/app';
   import { resolveTheme, type Song } from '$lib/model';
   import SongLine from '$components/common/SongLine.svelte';
   import Metronome from '$components/perf/Metronome.svelte';
@@ -38,9 +46,16 @@
   const SPEED_MAX = 200;
   const DEFAULT_SPEED = 40;
 
+  // Minimum time a song stays on screen before auto-advancing, so short songs
+  // that don't need scrolling are still readable in continuous play.
+  const MIN_DWELL_MS = 7000;
+  const ADVANCE_GAP_MS = 700;
+
   let playing = $state(false);
   let speed = $state(DEFAULT_SPEED);
   let countingIn = $state(false);
+  let scrollStartedAt = 0;
+  let advanceTimer: ReturnType<typeof setTimeout> | null = null;
 
   let scrollEl: HTMLDivElement | null = $state(null);
   let scroller: AutoScroller | null = null;
@@ -117,11 +132,15 @@
       countInTimer = setTimeout(() => {
         countingIn = false;
         countInTimer = null;
-        if (playing) scroller?.play();
+        if (playing) {
+          scrollStartedAt = performance.now();
+          scroller?.play();
+        }
       }, ms);
     } else {
       countingIn = false;
       playing = true;
+      scrollStartedAt = performance.now();
       scroller?.play();
     }
   }
@@ -134,6 +153,7 @@
   }
 
   function togglePlay(): void {
+    clearAdvance();
     if (playing) {
       playing = false;
       countingIn = false;
@@ -157,23 +177,39 @@
     playing = false;
     countingIn = false;
     clearCountIn();
+    clearAdvance();
     scroller?.pause();
     if (scrollEl) scrollEl.scrollTop = 0;
     session.update((s) => ({ ...s, perfIndex: target }));
   }
 
+  function clearAdvance(): void {
+    if (advanceTimer) {
+      clearTimeout(advanceTimer);
+      advanceTimer = null;
+    }
+  }
+
   function handleEnd(): void {
-    // Auto-advance to the next song; at the last song, just stop.
-    if (index < songs.length - 1) {
-      transitionTo(index + 1);
-      // Brief transition, then resume playback on the new song.
-      setTimeout(() => {
-        beginPlay();
-      }, 600);
-    } else {
+    // Continuous play is opt-in. When off, stop at the end of each song.
+    if (!$settings.autoAdvance || index >= songs.length - 1) {
       playing = false;
       countingIn = false;
+      return;
     }
+    // Keep short songs on screen for a minimum readable dwell before advancing.
+    const elapsed = performance.now() - scrollStartedAt;
+    const wait = Math.max(ADVANCE_GAP_MS, MIN_DWELL_MS - elapsed);
+    clearAdvance();
+    advanceTimer = setTimeout(() => {
+      advanceTimer = null;
+      transitionTo(index + 1);
+      // Brief beat, then resume playback on the new song.
+      advanceTimer = setTimeout(() => {
+        advanceTimer = null;
+        beginPlay();
+      }, 500);
+    }, wait);
   }
 
   // ---- Speed -----------------------------------------------------------------
@@ -234,6 +270,7 @@
     playing = false;
     countingIn = false;
     clearCountIn();
+    clearAdvance();
     scroller?.pause();
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     goLibrary();
@@ -288,6 +325,11 @@
       songIndex={index}
       songCount={songCount}
       songTitle={song.title}
+      autoAdvance={$settings.autoAdvance}
+      onToggleAutoAdvance={() =>
+        updateSettings((s) => {
+          s.autoAdvance = !s.autoAdvance;
+        })}
     />
   </div>
 {:else}
