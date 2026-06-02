@@ -3,9 +3,11 @@
   import { seedSamples } from '$lib/samples';
   import Button from '$components/common/Button.svelte';
   import SetListPanel from '$components/common/SetListPanel.svelte';
+  import ImportDialog from '$components/ImportDialog.svelte';
 
   let query = $state('');
   let seeding = $state(false);
+  let importing = $state(false);
 
   async function loadSamples() {
     seeding = true;
@@ -35,7 +37,10 @@
       <span class="dot" aria-hidden="true"></span>
       <h1>Stage Prompter</h1>
     </div>
-    <Button variant="filled" size="md" onclick={newSong}>+ שיר חדש</Button>
+    <div class="topbar-actions">
+      <Button variant="subtle" size="md" onclick={() => (importing = true)}>⤓ ייבוא שיר</Button>
+      <Button variant="filled" size="md" onclick={newSong}>+ שיר חדש</Button>
+    </div>
   </header>
 
   <div class="cols">
@@ -56,6 +61,7 @@
           <p>אין שירים עדיין.</p>
           <div class="empty-actions">
             <Button variant="filled" onclick={newSong}>צור את השיר הראשון</Button>
+            <Button variant="subtle" onclick={() => (importing = true)}>⤓ ייבוא מטקסט</Button>
             <Button variant="subtle" onclick={loadSamples} disabled={seeding}>
               {seeding ? 'טוען…' : 'טען שירי דוגמה'}
             </Button>
@@ -86,6 +92,10 @@
   </div>
 </div>
 
+{#if importing}
+  <ImportDialog onclose={() => (importing = false)} />
+{/if}
+
 <style>
   .library {
     display: flex;
@@ -103,6 +113,10 @@
   .brand {
     display: flex;
     align-items: center;
+    gap: var(--sp-3);
+  }
+  .topbar-actions {
+    display: flex;
     gap: var(--sp-3);
   }
   .brand h1 {

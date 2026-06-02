@@ -54,6 +54,30 @@
 
   const full = $derived(lineText(line));
 
+  /**
+   * Resolve the writing direction of a text run from its first strong character.
+   * Used per-cell so a chord anchors to the LOGICAL start of its word — the right
+   * edge for Hebrew, the left edge for Latin/numbers — even when an LTR word sits
+   * inside an RTL line (and vice-versa). The chord symbol itself (always Latin)
+   * must NOT influence this, so we detect from the lyric text only.
+   */
+  function strongDir(text: string, fallback: 'ltr' | 'rtl'): 'ltr' | 'rtl' {
+    for (const ch of text) {
+      const c = ch.codePointAt(0)!;
+      // Hebrew, Arabic and related RTL blocks.
+      if ((c >= 0x0590 && c <= 0x08ff) || (c >= 0xfb1d && c <= 0xfdff) || (c >= 0xfe70 && c <= 0xfeff))
+        return 'rtl';
+      // Latin (basic + extended) → LTR.
+      if ((c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a) || (c >= 0x00c0 && c <= 0x024f))
+        return 'ltr';
+    }
+    return fallback;
+  }
+
+  const baseDir = $derived<'ltr' | 'rtl'>(
+    dir === 'ltr' ? 'ltr' : dir === 'rtl' ? 'rtl' : strongDir(full, 'rtl'),
+  );
+
   /** Collect every boundary where a cell must break: segment edges + note edges. */
   const cells = $derived.by((): Cell[] => {
     const segs = line.segments;
@@ -179,12 +203,12 @@
   class="line"
   class:editable
   bind:this={rootEl}
-  {dir}
+  dir={baseDir}
   style="--lyric:{theme.lyricSize}px; --chord:{theme.chordSize}px; --noteSize:{theme.noteSize}px; --note-color:{theme.note};"
 >
   {#each cells as cell, i (i)}
     {@const startNote = noteStartingAt(cell.offset)}
-    <span class="cell">
+    <span class="cell" dir={strongDir(cell.text, baseDir)}>
       <span class="top" aria-hidden={!cell.chord && !startNote}>
         {#if startNote}
           <span class="note-label" style="color:{theme.note}; font-size:var(--noteSize);"

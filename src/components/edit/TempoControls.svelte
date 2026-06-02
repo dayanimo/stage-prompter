@@ -15,7 +15,16 @@
   function commitBpm(raw: number) {
     if (!Number.isFinite(raw)) return;
     const bpm = Math.min(300, Math.max(30, Math.round(raw)));
-    if (bpm !== song.bpm) updateSong(song.id, (s) => (s.bpm = bpm));
+    if (bpm === song.bpm) return;
+    updateSong(song.id, (s) => {
+      // Keep the auto-scroll speed correlated with tempo: when the BPM changes,
+      // scale the saved scroll speed by the same ratio so a faster song scrolls
+      // proportionally faster (and a slower one slower).
+      if (typeof s.scrollSpeed === 'number' && s.bpm > 0) {
+        s.scrollSpeed = Math.min(200, Math.max(0, Math.round(s.scrollSpeed * (bpm / s.bpm))));
+      }
+      s.bpm = bpm;
+    });
   }
 
   function onBpmInput(e: Event) {

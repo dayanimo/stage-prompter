@@ -89,6 +89,13 @@ export async function addSong(title?: string): Promise<Song> {
   return song;
 }
 
+/** Persist an already-built Song (e.g. from the chart importer). */
+export async function importSong(song: Song): Promise<Song> {
+  await db.putSong(song);
+  songs.update((list) => [...list, song]);
+  return song;
+}
+
 /** Apply a mutation to a song and persist. Pass a function that mutates in place. */
 export async function updateSong(id: string, mutate: (s: Song) => void): Promise<void> {
   const list = get(songs);
