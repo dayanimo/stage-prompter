@@ -1,9 +1,20 @@
 <script lang="ts">
   import { songs, addSong, openSong, duplicateSong, deleteSong } from '$stores/app';
+  import { seedSamples } from '$lib/samples';
   import Button from '$components/common/Button.svelte';
   import SetListPanel from '$components/common/SetListPanel.svelte';
 
   let query = $state('');
+  let seeding = $state(false);
+
+  async function loadSamples() {
+    seeding = true;
+    try {
+      await seedSamples();
+    } finally {
+      seeding = false;
+    }
+  }
 
   const filtered = $derived(
     $songs
@@ -43,7 +54,13 @@
       {#if filtered.length === 0}
         <div class="empty">
           <p>אין שירים עדיין.</p>
-          <Button variant="filled" onclick={newSong}>צור את השיר הראשון</Button>
+          <div class="empty-actions">
+            <Button variant="filled" onclick={newSong}>צור את השיר הראשון</Button>
+            <Button variant="subtle" onclick={loadSamples} disabled={seeding}>
+              {seeding ? 'טוען…' : 'טען שירי דוגמה'}
+            </Button>
+          </div>
+          <p class="empty-hint">שירי דוגמה: הבה נגילה, הבאנו שלום עליכם, דוד מלך ישראל — עם אקורדים וסט מוכן.</p>
         </div>
       {:else}
         <ul class="song-list">
@@ -138,6 +155,19 @@
     place-items: center;
     gap: var(--sp-5);
     padding: var(--sp-9) 0;
+    color: var(--ink-3);
+  }
+  .empty-actions {
+    display: flex;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .empty-hint {
+    margin: 0;
+    max-width: 42ch;
+    text-align: center;
+    font-size: var(--text-sm);
     color: var(--ink-3);
   }
   .song-list {
