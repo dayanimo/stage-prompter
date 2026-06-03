@@ -73,20 +73,21 @@
     position: fixed;
     inset: 0;
     background: oklch(0 0 0 / 0.65);
-    z-index: var(--z-modal-backdrop, 60);
+    z-index: var(--z-backdrop);
   }
   .sheet {
     position: fixed;
-    z-index: var(--z-modal, 61);
+    z-index: var(--z-modal);
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     width: min(420px, 92vw);
+    max-height: 92vh;
+    overflow: auto;
     background: var(--surface);
     border: 1px solid var(--border-2);
     border-radius: var(--r-lg);
     box-shadow: 0 24px 64px oklch(0 0 0 / 0.5);
-    overflow: hidden;
   }
   header {
     display: flex;
