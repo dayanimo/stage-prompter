@@ -473,9 +473,13 @@
   let peerId = $state('');
   let peerReady = $state(false);
   let peerCount = $state(0);
-  const remoteUrl = $derived(
-    peerId ? `${location.origin}${location.pathname}#remote?p=${peerId}` : '',
-  );
+  // Phone-remote QR target. On the web, use this very origin. In the desktop
+  // app (app:// origin) a phone can't open app://, so point the QR at the public
+  // web remote — it still pairs to this stage over WebRTC (origin-agnostic).
+  const PUBLIC_REMOTE_BASE = 'https://stage-prompter.pages.dev/';
+  const isWebOrigin = location.protocol === 'http:' || location.protocol === 'https:';
+  const remoteBase = isWebOrigin ? `${location.origin}${location.pathname}` : PUBLIC_REMOTE_BASE;
+  const remoteUrl = $derived(peerId ? `${remoteBase}#remote?p=${peerId}` : '');
 
   function handleRemoteMessage(m: RemoteMessage): void {
     if (m.kind === 'cmd') handleRemoteCommand(m.cmd);

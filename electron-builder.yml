@@ -1,0 +1,27 @@
+appId: com.stageprompter.desktop
+productName: Stage Prompter
+copyright: Local-first lyrics & chords prompter
+
+directories:
+  output: release
+  buildResources: build
+
+# Only the built web app + the Electron shell are packaged; node_modules and
+# source are not needed at runtime (the UI is served from dist via app://).
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+
+win:
+  target:
+    - nsis
+  artifactName: ${productName}-${version}-Setup.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Stage Prompter
