@@ -24,6 +24,7 @@
   import ThemeControls from '$components/edit/ThemeControls.svelte';
   import TempoControls from '$components/edit/TempoControls.svelte';
   import FavoritesPanel from '$components/edit/FavoritesPanel.svelte';
+  import { downloadSnapshot, importFromFile } from '$lib/exporter';
 
   type Tab = 'chords' | 'theme' | 'tempo';
   let tab = $state<Tab>('chords');
@@ -116,6 +117,37 @@
     window.addEventListener('pointerup', up);
   }
 
+  // ---- Backup / restore (also available here, not just the library) ----------
+  let fileInput = $state<HTMLInputElement | null>(null);
+  let flashMsg = $state<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  let flashTimer: ReturnType<typeof setTimeout> | null = null;
+  function flash(kind: 'ok' | 'err', text: string) {
+    flashMsg = { kind, text };
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => (flashMsg = null), 4000);
+  }
+  async function onExportBackup() {
+    try {
+      await downloadSnapshot();
+      flash('ok', 'הגיבוי הורד.');
+    } catch {
+      flash('err', 'ייצוא הגיבוי נכשל.');
+    }
+  }
+  async function onImportFile(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      await importFromFile(file, 'merge');
+      flash('ok', 'הייבוא הושלם.');
+    } catch (err) {
+      flash('err', err instanceof Error ? err.message : 'הייבוא נכשל.');
+    } finally {
+      input.value = '';
+    }
+  }
+
   // Quick-perform: drop the song into a scratch set and play it solo.
   async function performThisSong() {
     if (!song) return;
@@ -157,8 +189,25 @@
         onclick={() => (showFavorites = !showFavorites)}
         title="אקורדים מועדפים צפים"
       >★ מועדפים</button>
+      <input
+        bind:this={fileInput}
+        type="file"
+        accept="application/json,.json"
+        class="hidden-file"
+        onchange={onImportFile}
+        aria-hidden="true"
+        tabindex="-1"
+      />
+      <button class="bak" onclick={() => fileInput?.click()} title="ייבוא גיבוי מקובץ">⤓ ייבוא</button>
+      <button class="bak" onclick={onExportBackup} title="ייצוא גיבוי מלא לקובץ">⤒ גיבוי</button>
       <Button variant="filled" size="sm" onclick={performThisSong}>נגן ▶</Button>
     </header>
+
+    {#if flashMsg}
+      <div class="flash" class:err={flashMsg.kind === 'err'} role="status" aria-live="polite">
+        {flashMsg.text}
+      </div>
+    {/if}
 
     <div class="body" bind:this={bodyEl} style="--panel-w:{panelW}px;">
       <main class="editor" aria-label="Lyrics editor">
@@ -400,5 +449,60 @@
     .fav-toggle {
       display: none;
     }
+  }
+  .hidden-file {
+    display: none;
+  }
+  .bak {
+    height: 32px;
+    padding-inline: var(--sp-3);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    color: var(--ink-2);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+      background var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+  .bak:hover {
+    background: var(--surface-3);
+    border-color: var(--border-2);
+    color: var(--ink);
+  }
+  .bak:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+  @media (max-width: 720px) {
+    .bak {
+      display: none;
+    }
+  }
+  .flash {
+    position: fixed;
+    inset-inline: 0;
+    bottom: var(--sp-5);
+    margin-inline: auto;
+    width: fit-content;
+    max-width: 90vw;
+    padding: var(--sp-3) var(--sp-5);
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid color-mix(in oklch, var(--accent) 50%, transparent);
+    border-radius: var(--r-full);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    z-index: var(--z-toast);
+    box-shadow: 0 8px 24px oklch(0 0 0 / 0.4);
+  }
+  .flash.err {
+    background: color-mix(in oklch, var(--danger) 18%, transparent);
+    color: var(--danger);
+    border-color: color-mix(in oklch, var(--danger) 50%, transparent);
   }
 </style>
