@@ -18,8 +18,17 @@
     updateSong,
     updateSettings,
   } from '$stores/app';
-  import { resolveTheme, resolveSectionStyle, lineText, type Song } from '$lib/model';
+  import {
+    resolveTheme,
+    resolveSectionStyle,
+    lineText,
+    type Song,
+    type Line,
+    type SongTheme,
+  } from '$lib/model';
   import SongLine from '$components/common/SongLine.svelte';
+  import TabView from '$components/common/TabView.svelte';
+  import NotationView from '$components/common/NotationView.svelte';
   import Metronome from '$components/perf/Metronome.svelte';
   import ScrollControls from '$components/perf/ScrollControls.svelte';
   import { createAutoScroller, type AutoScroller } from '$lib/autoscroll';
@@ -487,7 +496,9 @@
         lineView,
         lineIndex: lineView ? lineIndex : -1,
         lineCount,
-        lines: song.lines.map(lineText),
+        lines: song.lines.map((l) =>
+          l.kind === 'tab' ? '🎸 טאבים' : l.kind === 'notation' ? '🎼 תווים' : lineText(l),
+        ),
         dir: dir as 'rtl' | 'ltr',
         ts: 0,
       },
@@ -574,32 +585,39 @@
       </div>
     {/if}
 
+    {#snippet lineAt(line: Line, lt: Required<SongTheme>)}
+      {#if line.kind === 'tab' && line.tab}
+        <div class="special-line">
+          <TabView tab={line.tab} color={lt.chord} size={Math.round(lt.lyricSize * 0.5)} />
+        </div>
+      {:else if line.kind === 'notation' && line.notation}
+        <div class="special-line">
+          <NotationView notation={line.notation} color={lt.text} size={Math.round(lt.lyricSize * 0.3)} />
+        </div>
+      {:else}
+        <SongLine
+          {line}
+          theme={lt}
+          transpose={song?.transpose ?? 0}
+          accidental={$settings.accidentalPref}
+          dir={song?.dir ?? 'auto'}
+          sectionStyle={song ? resolveSectionStyle(song, line) : undefined}
+        />
+      {/if}
+    {/snippet}
+
     {#if lineView && focusTheme}
       <!-- 2-line focus: big active line + dimmed preview; tap/Space advances. -->
       <!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
       <div class="focus" {dir} onclick={nextLineStep} role="presentation">
-        {#if activeLine}
+        {#if activeLine && focusTheme}
           <div class="focus-line active">
-            <SongLine
-              line={activeLine}
-              theme={focusTheme}
-              transpose={song.transpose ?? 0}
-              accidental={$settings.accidentalPref}
-              dir={song.dir}
-              sectionStyle={resolveSectionStyle(song, activeLine)}
-            />
+            {@render lineAt(activeLine, focusTheme)}
           </div>
         {/if}
-        {#if nextLine}
+        {#if nextLine && focusTheme}
           <div class="focus-line preview" aria-hidden="true">
-            <SongLine
-              line={nextLine}
-              theme={focusTheme}
-              transpose={song.transpose ?? 0}
-              accidental={$settings.accidentalPref}
-              dir={song.dir}
-              sectionStyle={resolveSectionStyle(song, nextLine)}
-            />
+            {@render lineAt(nextLine, focusTheme)}
           </div>
         {/if}
         <div class="focus-pos tnum" aria-hidden="true">{lineIndex + 1}/{lineCount}</div>
@@ -608,14 +626,28 @@
       <div class="scroll" bind:this={scrollEl}>
         <div class="content" {dir}>
           {#each song.lines as line (line.id)}
-            <SongLine
-              {line}
-              {theme}
-              transpose={song.transpose ?? 0}
-              accidental={$settings.accidentalPref}
-              dir={song.dir}
-              sectionStyle={resolveSectionStyle(song, line)}
-            />
+            {#if line.kind === 'tab' && line.tab}
+              <div class="special-line">
+                <TabView tab={line.tab} color={theme.chord} size={Math.round(theme.lyricSize * 0.6)} />
+              </div>
+            {:else if line.kind === 'notation' && line.notation}
+              <div class="special-line">
+                <NotationView
+                  notation={line.notation}
+                  color={theme.text}
+                  size={Math.round(theme.lyricSize * 0.34)}
+                />
+              </div>
+            {:else}
+              <SongLine
+                {line}
+                {theme}
+                transpose={song.transpose ?? 0}
+                accidental={$settings.accidentalPref}
+                dir={song.dir}
+                sectionStyle={resolveSectionStyle(song, line)}
+              />
+            {/if}
           {/each}
           <div class="tail" aria-hidden="true"></div>
         </div>
@@ -829,6 +861,13 @@
     flex-direction: column;
     gap: clamp(8px, 1.6vh, 20px);
     text-align: start;
+  }
+
+  /* Tab / notation lines: let the block size to its content, scroll if wide. */
+  .special-line {
+    align-self: stretch;
+    overflow-x: auto;
+    padding-block: clamp(4px, 1vh, 12px);
   }
 
   /* Trailing space so the last line can scroll clear of the transport bar. */

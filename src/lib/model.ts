@@ -40,13 +40,46 @@ export interface Note {
 export type SectionKind =
   | 'intro' | 'verse' | 'prechorus' | 'chorus' | 'bridge' | 'solo' | 'outro' | string;
 
+/** A line is one of three kinds. Lyrics is the default and original shape. */
+export type LineKind = 'lyrics' | 'tab' | 'notation';
+
+/** Guitar tablature grid. `cols[c][s]` is the fret on string `s` at column `c`. */
+export interface TabContent {
+  /** String labels top→bottom (display order); standard guitar = e B G D A E. */
+  strings: string[];
+  /** Columns of frets; each column has one entry per string (null = not played). */
+  cols: (number | null)[][];
+}
+
+export type NoteDur = 'w' | 'h' | 'q' | '8' | '16';
+
+/** A note on the staff: a diatonic `step` (0 = bottom staff line) + duration. */
+export interface StaffNote {
+  step: number;
+  dur: NoteDur;
+  acc?: '#' | 'b' | null;
+}
+
+export interface NotationContent {
+  clef: 'treble' | 'bass';
+  notes: StaffNote[];
+}
+
 export interface Line {
   id: string;
+  kind?: LineKind; // undefined = 'lyrics' (back-compat)
   segments: Segment[];
   notes: Note[];
   section?: SectionKind;
   sectionColor?: string; // optional text color for the section badge
   sectionBg?: string; // optional background color for the section badge
+  tab?: TabContent; // present when kind === 'tab'
+  notation?: NotationContent; // present when kind === 'notation'
+}
+
+/** Resolve a line's effective kind (treats legacy lines without `kind` as lyrics). */
+export function lineKind(line: Line): LineKind {
+  return line.kind ?? 'lyrics';
 }
 
 /** Hebrew display label for the known section kinds (custom strings show as-is). */
@@ -171,6 +204,28 @@ export function lineText(line: Line): string {
 
 export function createLine(text = ''): Line {
   return { id: uid('ln_'), segments: [{ text }], notes: [] };
+}
+
+/** Standard 6-string guitar tab, high e on top, with `columns` empty columns. */
+export function createTabContent(columns = 16): TabContent {
+  return {
+    strings: ['e', 'B', 'G', 'D', 'A', 'E'],
+    cols: Array.from({ length: columns }, () => Array(6).fill(null) as (number | null)[]),
+  };
+}
+
+export function createTabLine(): Line {
+  return { id: uid('ln_'), kind: 'tab', segments: [{ text: '' }], notes: [], tab: createTabContent() };
+}
+
+export function createNotationLine(): Line {
+  return {
+    id: uid('ln_'),
+    kind: 'notation',
+    segments: [{ text: '' }],
+    notes: [],
+    notation: { clef: 'treble', notes: [] },
+  };
 }
 
 export function createSong(title = 'New Song'): Song {

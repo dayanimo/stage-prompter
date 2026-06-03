@@ -6,10 +6,13 @@
    *
    * All model writes go through `updateSong` + the pure helpers in $lib/edits.
    */
-  import type { Song, Note, SectionKind } from '$lib/model';
+  import type { Song, Note, SectionKind, StaffNote, LineKind, Line } from '$lib/model';
   import {
     lineText,
     createLine,
+    createTabLine,
+    createNotationLine,
+    lineKind,
     resolveTheme,
     sectionLabel,
     SECTION_LABELS,
@@ -25,8 +28,11 @@
     moveLine,
     duplicateLine,
   } from '$lib/edits';
+  import { withAddedColumns } from '$lib/tab';
   import SongLine from '$components/common/SongLine.svelte';
   import NotePopover from './NotePopover.svelte';
+  import TabEditor from './TabEditor.svelte';
+  import NotationEditor from './NotationEditor.svelte';
 
   interface Props {
     song: Song;
@@ -150,8 +156,57 @@
     if (newId) queueFocus(newId, 0);
   }
 
-  function addLineEnd() {
-    updateSong(song.id, (s) => s.lines.push(createLine('')));
+  function addLineOfKind(kind: LineKind) {
+    const line =
+      kind === 'tab' ? createTabLine() : kind === 'notation' ? createNotationLine() : createLine('');
+    updateSong(song.id, (s) => s.lines.push(line));
+    if (kind === 'lyrics') queueFocus(line.id, 0);
+  }
+
+  // ---- Tab line edits --------------------------------------------------------
+  function tabSet(lineId: string, col: number, str: number, fret: number | null) {
+    updateSong(song.id, (s) => {
+      const l = s.lines.find((x) => x.id === lineId);
+      if (l?.tab) l.tab.cols[col][str] = fret;
+    });
+  }
+  function tabAddCols(lineId: string) {
+    updateSong(song.id, (s) => {
+      const l = s.lines.find((x) => x.id === lineId);
+      if (l?.tab) l.tab.cols = withAddedColumns(l.tab);
+    });
+  }
+  function tabRemoveCol(lineId: string) {
+    updateSong(song.id, (s) => {
+      const l = s.lines.find((x) => x.id === lineId);
+      if (l?.tab && l.tab.cols.length > 1) l.tab.cols = l.tab.cols.slice(0, -1);
+    });
+  }
+
+  // ---- Notation line edits ---------------------------------------------------
+  function notationAppend(lineId: string, note: StaffNote) {
+    updateSong(song.id, (s) => {
+      const l = s.lines.find((x) => x.id === lineId);
+      if (l?.notation) l.notation.notes = [...l.notation.notes, note];
+    });
+  }
+  function notationRemove(lineId: string, index: number) {
+    updateSong(song.id, (s) => {
+      const l = s.lines.find((x) => x.id === lineId);
+      if (l?.notation) l.notation.notes = l.notation.notes.filter((_, i) => i !== index);
+    });
+  }
+  function notationClef(lineId: string, clef: 'treble' | 'bass') {
+    updateSong(song.id, (s) => {
+      const l = s.lines.find((x) => x.id === lineId);
+      if (l?.notation) l.notation.clef = clef;
+    });
+  }
+  function notationClear(lineId: string) {
+    updateSong(song.id, (s) => {
+      const l = s.lines.find((x) => x.id === lineId);
+      if (l?.notation) l.notation.notes = [];
+    });
   }
 
   function removeLine(lineId: string) {
@@ -278,9 +333,26 @@
       <option value={p}></option>
     {/each}
   </datalist>
+
+  {#snippet lineActions(line: Line, idx: number, withNote: boolean)}
+    <div class="line-actions">
+      <button type="button" class="icon" title="הזז שורה למעלה" aria-label="הזז שורה למעלה" disabled={idx === 0} onclick={() => moveLineBy(line.id, -1)}>↑</button>
+      <button type="button" class="icon" title="הזז שורה למטה" aria-label="הזז שורה למטה" disabled={idx === song.lines.length - 1} onclick={() => moveLineBy(line.id, 1)}>↓</button>
+      <button type="button" class="icon" title="הוסף שורה מעל" aria-label="הוסף שורה מעל" onclick={() => addAdjacentLine(line.id, 'above')}>⤒</button>
+      <button type="button" class="icon" title="הוסף שורה מתחת" aria-label="הוסף שורה מתחת" onclick={() => addAdjacentLine(line.id, 'below')}>⤓</button>
+      <button type="button" class="icon" title="שכפל שורה" aria-label="שכפל שורה" onclick={() => dupLine(line.id)}>⧉</button>
+      {#if withNote}
+        <button type="button" class="icon" title="הוסף הערה / צבע על הבחירה" aria-label="הוסף הערה או צבע" disabled={!canAddNote(line.id)} onclick={() => openNotePopover(line.id)}>♪</button>
+      {/if}
+      <button type="button" class="icon danger" title="מחק שורה" aria-label="מחק שורה" onclick={() => removeLine(line.id)}>✕</button>
+    </div>
+  {/snippet}
+
   {#each song.lines as line, idx (line.id)}
     {@const isSelected = selection?.lineId === line.id}
-    <div class="line-block" class:active={isSelected}>
+    {@const kind = lineKind(line)}
+    <div class="line-block" class:active={isSelected} class:special={kind !== 'lyrics'}>
+      {#if kind === 'lyrics'}
       <!-- Live preview: clickable chords + drag-select to place chords -->
       <div class="preview" style="background:{theme.bg};">
         <SongLine
@@ -333,60 +405,7 @@
           aria-label="טקסט שורה"
         />
 
-        <div class="line-actions">
-          <button
-            type="button"
-            class="icon"
-            title="הזז שורה למעלה"
-            aria-label="הזז שורה למעלה"
-            disabled={idx === 0}
-            onclick={() => moveLineBy(line.id, -1)}
-          >↑</button>
-          <button
-            type="button"
-            class="icon"
-            title="הזז שורה למטה"
-            aria-label="הזז שורה למטה"
-            disabled={idx === song.lines.length - 1}
-            onclick={() => moveLineBy(line.id, 1)}
-          >↓</button>
-          <button
-            type="button"
-            class="icon"
-            title="הוסף שורה מעל"
-            aria-label="הוסף שורה מעל"
-            onclick={() => addAdjacentLine(line.id, 'above')}
-          >⤒</button>
-          <button
-            type="button"
-            class="icon"
-            title="הוסף שורה מתחת"
-            aria-label="הוסף שורה מתחת"
-            onclick={() => addAdjacentLine(line.id, 'below')}
-          >⤓</button>
-          <button
-            type="button"
-            class="icon"
-            title="שכפל שורה"
-            aria-label="שכפל שורה"
-            onclick={() => dupLine(line.id)}
-          >⧉</button>
-          <button
-            type="button"
-            class="icon"
-            title="הוסף הערה / צבע על הבחירה"
-            aria-label="הוסף הערה או צבע"
-            disabled={!canAddNote(line.id)}
-            onclick={() => openNotePopover(line.id)}
-          >♪</button>
-          <button
-            type="button"
-            class="icon danger"
-            title="מחק שורה"
-            aria-label="מחק שורה"
-            onclick={() => removeLine(line.id)}
-          >✕</button>
-        </div>
+        {@render lineActions(line, idx, true)}
       </div>
 
       {#if sectionStyleLine === line.id && line.section}
@@ -470,10 +489,38 @@
           />
         </div>
       {/if}
+      {:else if kind === 'tab'}
+        <div class="kind-head"><span>🎸 טאבים</span></div>
+        {#if line.tab}
+          <TabEditor
+            tab={line.tab}
+            onset={(c, s, f) => tabSet(line.id, c, s, f)}
+            onAddCols={() => tabAddCols(line.id)}
+            onRemoveCol={() => tabRemoveCol(line.id)}
+          />
+        {/if}
+        <div class="controls end">{@render lineActions(line, idx, false)}</div>
+      {:else}
+        <div class="kind-head"><span>🎼 תווים</span></div>
+        {#if line.notation}
+          <NotationEditor
+            notation={line.notation}
+            onAppend={(n) => notationAppend(line.id, n)}
+            onRemove={(i) => notationRemove(line.id, i)}
+            onClef={(c) => notationClef(line.id, c)}
+            onClear={() => notationClear(line.id)}
+          />
+        {/if}
+        <div class="controls end">{@render lineActions(line, idx, false)}</div>
+      {/if}
     </div>
   {/each}
 
-  <button type="button" class="add-line" onclick={addLineEnd}>+ שורה חדשה</button>
+  <div class="add-bar">
+    <button type="button" class="add-line" onclick={() => addLineOfKind('lyrics')}>+ שורת מילים</button>
+    <button type="button" class="add-line tab" onclick={() => addLineOfKind('tab')}>+ טאבים 🎸</button>
+    <button type="button" class="add-line note" onclick={() => addLineOfKind('notation')}>+ תווים 🎼</button>
+  </div>
 </div>
 
 <style>
@@ -721,6 +768,28 @@
   }
   .popover-wrap {
     margin-top: var(--sp-3);
+  }
+  .kind-head {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-3);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .line-block.special {
+    background: var(--surface-2);
+  }
+  .controls.end {
+    justify-content: flex-end;
+    margin-top: var(--sp-3);
+  }
+  .add-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+    margin-top: var(--sp-2);
   }
   .add-line {
     align-self: flex-start;

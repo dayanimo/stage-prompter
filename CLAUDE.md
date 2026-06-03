@@ -108,6 +108,15 @@ clones, persists to IndexedDB, and refreshes the store. Don't write `db` directl
   `<input list="section-presets">` so users can pick a preset or type their own.
 - **Line ops** (`edits.ts`): `addLineRelative` (above/below), `moveLine` (±1), `duplicateLine` (deep
   clone incl. chords/notes/section). All run inside `updateSong`, so they're undoable.
+- **Line kinds:** a line is `lyrics` (default, no `kind`), `tab`, or `notation` (`lineKind(line)`).
+  Tab = a 6-string × N grid (`TabContent.cols[col][string]`), edited via `TabEditor` (click cells,
+  type frets) and rendered as ASCII (`lib/tab.ts` `tabToAscii`) by `TabView`. Notation = a diatonic
+  staff where pitch is an integer `step` (0 = bottom line; `lib/notation.ts`); `Staff.svelte` is the
+  pure SVG renderer (read-only or click-to-place), wrapped by `NotationView` (perf) and
+  `NotationEditor` (toolbar: duration/accidental/clef). Performance dispatches per kind in
+  `Stage.svelte` (scroll loop + the `lineAt` snippet for 2-line mode); the editor branches per kind
+  in `LyricsEditor.svelte` with a shared `lineActions` snippet. Remote mirror shows a 🎸/🎼 label for
+  non-lyrics lines. No notation engine dep — the SVG staff is intentionally lightweight.
 - **Internal remote** (`lib/remote.ts` + `RemoteView.svelte`, route `#remote`): a same-origin
   `BroadcastChannel` carries `cmd` (remote→stage) and `state` (stage→remote) — no server, no cost,
   works offline across tabs/windows on one machine. The Stage publishes state on change and on
