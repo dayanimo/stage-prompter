@@ -8,6 +8,7 @@ import {
   type Song,
   type SetList,
   type AppSettings,
+  type Chord,
   DEFAULT_SETTINGS,
   createSong,
   createSetList,
@@ -96,11 +97,45 @@ export async function importSong(song: Song): Promise<Song> {
   return song;
 }
 
+// ---- Undo / redo history ---------------------------------------------------
+// Per-song snapshot stacks. Editor edits push the pre-edit state; performance
+// chrome writes (scroll speed, live font bumps) opt out via { record: false }.
+
+const MAX_HISTORY = 100;
+const undoStack: Record<string, Song[]> = {};
+const redoStack: Record<string, Song[]> = {};
+/** Bumped on any history change so derived can/redo state recomputes. */
+const historyVersion = writable(0);
+
+export const undoState = derived([session, historyVersion], ([$session]) => {
+  const id = $session.currentSongId;
+  return {
+    canUndo: !!id && (undoStack[id]?.length ?? 0) > 0,
+    canRedo: !!id && (redoStack[id]?.length ?? 0) > 0,
+  };
+});
+
+interface UpdateOpts {
+  /** Record this change in undo history (default true). */
+  record?: boolean;
+}
+
 /** Apply a mutation to a song and persist. Pass a function that mutates in place. */
-export async function updateSong(id: string, mutate: (s: Song) => void): Promise<void> {
+export async function updateSong(
+  id: string,
+  mutate: (s: Song) => void,
+  opts: UpdateOpts = {},
+): Promise<void> {
   const list = get(songs);
   const idx = list.findIndex((s) => s.id === id);
   if (idx === -1) return;
+  if (opts.record ?? true) {
+    const stack = (undoStack[id] ??= []);
+    stack.push(structuredClone(list[idx]));
+    if (stack.length > MAX_HISTORY) stack.shift();
+    redoStack[id] = [];
+    historyVersion.update((v) => v + 1);
+  }
   const next = structuredClone(list[idx]);
   mutate(next);
   next.updatedAt = Date.now();
@@ -108,6 +143,40 @@ export async function updateSong(id: string, mutate: (s: Song) => void): Promise
   copy[idx] = next;
   songs.set(copy);
   await db.putSong(next);
+}
+
+async function restoreSong(id: string, song: Song): Promise<void> {
+  const list = get(songs);
+  const idx = list.findIndex((s) => s.id === id);
+  if (idx === -1) return;
+  const copy = [...list];
+  copy[idx] = song;
+  songs.set(copy);
+  await db.putSong(song);
+}
+
+export async function undo(): Promise<void> {
+  const id = get(session).currentSongId;
+  if (!id) return;
+  const stack = undoStack[id];
+  if (!stack?.length) return;
+  const current = get(songs).find((s) => s.id === id);
+  if (!current) return;
+  (redoStack[id] ??= []).push(structuredClone(current));
+  await restoreSong(id, stack.pop()!);
+  historyVersion.update((v) => v + 1);
+}
+
+export async function redo(): Promise<void> {
+  const id = get(session).currentSongId;
+  if (!id) return;
+  const stack = redoStack[id];
+  if (!stack?.length) return;
+  const current = get(songs).find((s) => s.id === id);
+  if (!current) return;
+  (undoStack[id] ??= []).push(structuredClone(current));
+  await restoreSong(id, stack.pop()!);
+  historyVersion.update((v) => v + 1);
 }
 
 export async function deleteSong(id: string): Promise<void> {
@@ -170,6 +239,28 @@ export async function updateSettings(mutate: (s: AppSettings) => void): Promise<
   mutate(next);
   settings.set(next);
   await db.putSettings(next);
+}
+
+// ---- Favorite chords -------------------------------------------------------
+
+const MAX_FAVORITES = 24;
+const chordKey = (c: Chord) => `${c.root}|${c.variation}|${c.bass ?? ''}`;
+
+/** Add a chord to the front of the favorites quick-pick (most-recent first). */
+export async function addFavoriteChord(chord: Chord): Promise<void> {
+  await updateSettings((s) => {
+    const key = chordKey(chord);
+    const list = (s.favoriteChords ?? []).filter((c) => chordKey(c) !== key);
+    list.unshift({ ...chord });
+    s.favoriteChords = list.slice(0, MAX_FAVORITES);
+  });
+}
+
+export async function removeFavoriteChord(chord: Chord): Promise<void> {
+  await updateSettings((s) => {
+    const key = chordKey(chord);
+    s.favoriteChords = (s.favoriteChords ?? []).filter((c) => chordKey(c) !== key);
+  });
 }
 
 // ---- Navigation helpers ----------------------------------------------------

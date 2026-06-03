@@ -53,11 +53,16 @@
   const MIN_DWELL_MS = 7000;
   const ADVANCE_GAP_MS = 700;
 
+  // Bars to keep the song still after it starts (past any count-in) before the
+  // auto-scroll begins, so the opening line doesn't slide off too early.
+  const SCROLL_LEAD_BARS = 4;
+
   let playing = $state(false);
   let speed = $state(DEFAULT_SPEED);
   let countingIn = $state(false);
   let scrollStartedAt = 0;
   let advanceTimer: ReturnType<typeof setTimeout> | null = null;
+  let leadTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ---- 2-line focus mode -----------------------------------------------------
   const lineView = $derived($settings.lineView);
@@ -223,6 +228,13 @@
   // ---- Count-in then scroll --------------------------------------------------
   let countInTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /** Wall-clock ms for a number of bars at the song's tempo. */
+  function barsToMs(bars: number): number {
+    if (!song) return 0;
+    const beats = bars * Math.max(1, song.timeSig.beats);
+    return (60 / Math.max(1, song.bpm)) * 1000 * beats;
+  }
+
   function beginPlay(): void {
     if (!song) return;
     beatTick = 0;
@@ -230,22 +242,39 @@
     if (bars > 0) {
       countingIn = true;
       playing = true; // metronome runs during count-in; scroll waits
-      const beats = bars * Math.max(1, song.timeSig.beats);
-      const ms = (60 / Math.max(1, song.bpm)) * 1000 * beats;
       clearCountIn();
       countInTimer = setTimeout(() => {
         countingIn = false;
         countInTimer = null;
-        if (playing) {
-          scrollStartedAt = performance.now();
-          scroller?.play();
-        }
-      }, ms);
+        if (playing) startScrollAfterLead();
+      }, barsToMs(bars));
     } else {
       countingIn = false;
       playing = true;
-      scrollStartedAt = performance.now();
+      startScrollAfterLead();
+    }
+  }
+
+  // Mark the song as "started" now (for dwell timing), then hold the scroll for
+  // SCROLL_LEAD_BARS so the first line stays put before motion kicks in.
+  function startScrollAfterLead(): void {
+    scrollStartedAt = performance.now();
+    clearLead();
+    const leadMs = barsToMs(SCROLL_LEAD_BARS);
+    if (leadMs <= 0) {
       scroller?.play();
+      return;
+    }
+    leadTimer = setTimeout(() => {
+      leadTimer = null;
+      if (playing && !countingIn) scroller?.play();
+    }, leadMs);
+  }
+
+  function clearLead(): void {
+    if (leadTimer) {
+      clearTimeout(leadTimer);
+      leadTimer = null;
     }
   }
 
@@ -262,6 +291,7 @@
       playing = false;
       countingIn = false;
       clearCountIn();
+      clearLead();
       scroller?.pause();
     } else {
       // If parked at the bottom, restart from the top.
@@ -281,6 +311,7 @@
     playing = false;
     countingIn = false;
     clearCountIn();
+    clearLead();
     clearAdvance();
     scroller?.pause();
     if (scrollEl) scrollEl.scrollTop = 0;
@@ -333,9 +364,13 @@
     if (speedSaveTimer) clearTimeout(speedSaveTimer);
     speedSaveTimer = setTimeout(() => {
       speedSaveTimer = null;
-      updateSong(id, (s) => {
-        s.scrollSpeed = value;
-      });
+      updateSong(
+        id,
+        (s) => {
+          s.scrollSpeed = value;
+        },
+        { record: false },
+      );
     }, 400);
   }
 
@@ -349,14 +384,18 @@
     const ratio = nextLyric / baseLyric;
     const nextChord = Math.round(Math.min(FONT_MAX, Math.max(FONT_MIN, theme.chordSize * ratio)));
     const nextNote = Math.round(Math.min(FONT_MAX, Math.max(FONT_MIN, theme.noteSize * ratio)));
-    updateSong(id, (s) => {
-      s.theme = {
-        ...(s.theme ?? {}),
-        lyricSize: nextLyric,
-        chordSize: nextChord,
-        noteSize: nextNote,
-      };
-    });
+    updateSong(
+      id,
+      (s) => {
+        s.theme = {
+          ...(s.theme ?? {}),
+          lyricSize: nextLyric,
+          chordSize: nextChord,
+          noteSize: nextNote,
+        };
+      },
+      { record: false },
+    );
   }
 
   // ---- Fullscreen ------------------------------------------------------------
@@ -374,6 +413,7 @@
     playing = false;
     countingIn = false;
     clearCountIn();
+    clearLead();
     clearAdvance();
     scroller?.pause();
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
@@ -468,6 +508,8 @@
       onNext={() => go(1)}
       onPrev={() => go(-1)}
       onExit={exit}
+      onFontUp={() => bumpFont(FONT_STEP)}
+      onFontDown={() => bumpFont(-FONT_STEP)}
       songIndex={index}
       songCount={songCount}
       songTitle={song.title}

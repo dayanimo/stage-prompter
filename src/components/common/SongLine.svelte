@@ -220,6 +220,7 @@
             <button
               type="button"
               class="chord chord-btn"
+              dir="ltr"
               style="color:{theme.chord}; font-size:var(--chord);"
               onclick={() => handleChordClick(cell)}
               title="לחץ להסרת אקורד"
@@ -227,7 +228,7 @@
               {formatChord(cell.chord, { semitones: transpose, acc: accidental })}
             </button>
           {:else}
-            <span class="chord" style="color:{theme.chord}; font-size:var(--chord);">
+            <span class="chord" dir="ltr" style="color:{theme.chord}; font-size:var(--chord);">
               {formatChord(cell.chord, { semitones: transpose, acc: accidental })}
             </span>
           {/if}
@@ -277,6 +278,9 @@
     font-family: var(--font-mono);
     line-height: 1.1;
     letter-spacing: -0.01em;
+    /* Chord symbols are always Latin (C#, Bbm7/D); isolate them as an LTR run so
+       the accidental stays to the RIGHT of the letter even inside an RTL line. */
+    unicode-bidi: isolate;
   }
   .chord-btn {
     background: none;

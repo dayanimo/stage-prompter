@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Chord, Root } from '$lib/model';
-  import { ROOT_LIST, VARIATIONS, formatChord, spell } from '$lib/chords';
+  import { ROOT_LIST, VARIATIONS, formatChord, spell, parseChord } from '$lib/chords';
   import type { VariationDef } from '$lib/chords';
 
   interface Props {
@@ -84,6 +84,35 @@
     onpick({ root, variation, bass });
   }
 
+  // ---- Typed chord entry --------------------------------------------------
+  // Type "Csus4", "C#m7", "D/F#"… to jump the selection to that chord. Invalid
+  // partial input just doesn't match (no error nag until something is typed).
+  let query = $state('');
+  let queryBad = $state(false);
+
+  function applyQuery(commitIt: boolean) {
+    const parsed = parseChord(query, accidental);
+    if (parsed) {
+      root = parsed.root;
+      variation = parsed.variation;
+      bass = parsed.bass;
+      queryBad = false;
+      if (commitIt) {
+        commit();
+        query = '';
+      }
+    } else {
+      queryBad = query.trim().length > 0;
+    }
+  }
+
+  function onQueryKey(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      applyQuery(true);
+    }
+  }
+
   // ---- Root scroller: keyboard + scroll-into-view -------------------------
   let scroller = $state<HTMLDivElement | null>(null);
   let rootButtons: HTMLButtonElement[] = $state([]);
@@ -125,10 +154,27 @@
   <!-- Preview header -->
   <div class="preview-bar">
     <span class="preview-label">אקורד</span>
-    <output class="preview-symbol tnum" aria-live="polite">{preview}</output>
+    <output class="preview-symbol tnum" dir="ltr" aria-live="polite">{preview}</output>
     {#if value && onremove}
       <button class="remove" type="button" onclick={() => onremove?.()}>הסר אקורד</button>
     {/if}
+  </div>
+
+  <!-- Typed chord entry -->
+  <div class="region region-type">
+    <input
+      class="chord-input"
+      class:bad={queryBad}
+      dir="ltr"
+      type="text"
+      bind:value={query}
+      oninput={() => applyQuery(false)}
+      onkeydown={onQueryKey}
+      placeholder="הקלד אקורד: Csus4, C#m7, D/F#…"
+      aria-label="הקלדת אקורד"
+      spellcheck="false"
+      autocomplete="off"
+    />
   </div>
 
   <!-- ROOT scroller -->
@@ -137,6 +183,7 @@
       class="root-scroller"
       role="radiogroup"
       aria-label="בחירת צליל יסוד"
+      dir="ltr"
       tabindex="-1"
       bind:this={scroller}
       onkeydown={onRootKey}
@@ -163,7 +210,7 @@
     {#each groups as g (g.group)}
       <div class="var-group">
         <h3 class="group-head">{g.label}</h3>
-        <div class="var-grid" role="radiogroup" aria-label={g.label}>
+        <div class="var-grid" role="radiogroup" aria-label={g.label} dir="ltr">
           {#each g.items as v (v.id)}
             <button
               class="var-cell"
@@ -184,7 +231,7 @@
   <!-- SLASH BASS -->
   <div class="region region-bass">
     <h3 class="group-head">בס (slash)</h3>
-    <div class="bass-row" role="radiogroup" aria-label="בחירת תו בס">
+    <div class="bass-row" role="radiogroup" aria-label="בחירת תו בס" dir="ltr">
       <button
         class="bass-pill"
         class:selected={bass === undefined}
@@ -270,6 +317,34 @@
   }
   .remove:active {
     background: color-mix(in oklch, var(--danger) 24%, transparent);
+  }
+
+  /* ---- Typed chord entry ---- */
+  .chord-input {
+    width: 100%;
+    height: 40px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: var(--text-base);
+    padding: 0 var(--sp-4);
+    transition:
+      border-color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
+  }
+  .chord-input::placeholder {
+    color: var(--ink-3);
+    font-family: var(--font-sans, inherit);
+  }
+  .chord-input:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+  .chord-input.bad {
+    border-color: color-mix(in oklch, var(--danger) 55%, transparent);
   }
 
   /* ---- Regions ---- */

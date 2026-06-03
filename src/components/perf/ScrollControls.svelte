@@ -19,6 +19,8 @@
     onNext: () => void;
     onPrev: () => void;
     onExit: () => void;
+    onFontUp: () => void;
+    onFontDown: () => void;
     songIndex: number;
     songCount: number;
     songTitle: string;
@@ -40,6 +42,8 @@
     onNext,
     onPrev,
     onExit,
+    onFontUp,
+    onFontDown,
     songIndex,
     songCount,
     songTitle,
@@ -136,7 +140,7 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
   </button>
 
-  <div class="transport">
+  <div class="transport" dir="ltr">
     <button
       class="ctl"
       onclick={onPrev}
@@ -207,6 +211,15 @@
       <span class="speed-val tnum">{Math.round(speed)}</span>
     </label>
   {/if}
+
+  <div class="fonts" role="group" aria-label="גודל טקסט">
+    <button class="ctl font" onclick={onFontDown} aria-label="הקטן טקסט" title="הקטן טקסט (-)">
+      <span aria-hidden="true">A−</span>
+    </button>
+    <button class="ctl font" onclick={onFontUp} aria-label="הגדל טקסט" title="הגדל טקסט (+)">
+      <span aria-hidden="true">A+</span>
+    </button>
+  </div>
 
   <button
     class="auto"
@@ -308,12 +321,8 @@
     fill: none;
     stroke: currentColor;
   }
-  /* In RTL (Hebrew), mirror the skip-prev / skip-next chevrons so "previous"
-     points right (back) and "next" points left, matching the reading flow.
-     The play/pause glyph is a universal symbol and stays as-is. */
-  .transport .ctl:not(.play):dir(rtl) svg {
-    transform: scaleX(-1);
-  }
+  /* The transport (prev · play · next) is forced LTR like every media player,
+     so the glyphs read conventionally regardless of the app's RTL chrome. */
 
   .ctl:hover:not(:disabled) {
     background: var(--surface-3);
@@ -379,6 +388,23 @@
     font-size: var(--text-base);
     color: var(--ink-2);
     white-space: nowrap;
+  }
+
+  .fonts {
+    display: flex;
+    gap: var(--sp-2);
+    flex: none;
+  }
+  .ctl.font {
+    width: 44px;
+    font-family: var(--font-mono);
+    font-size: var(--text-base);
+    font-weight: 600;
+  }
+  @media (max-width: 560px) {
+    .fonts {
+      display: none;
+    }
   }
 
   .auto {

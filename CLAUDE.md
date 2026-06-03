@@ -83,8 +83,22 @@ clones, persists to IndexedDB, and refreshes the store. Don't write `db` directl
   scales it proportionally (tempo↔speed link) in `TempoControls.commitBpm`.
 - **Metronome** needs a user gesture to resume its AudioContext; it forwards beats via an `onBeat`
   prop used for the count-in countdown and 2-line beat-paced advance.
-- **RTL icons:** mirror skip-prev/next chevrons with `transform: scaleX(-1)` under `:dir(rtl)`;
-  leave the play/pause glyph alone.
+- **Chord symbols are LTR:** a chord like `C#`/`Bbm7/D` must keep the accidental to the RIGHT
+  of the letter even inside an RTL line. Rendered chords (`SongLine .chord`), the panel preview,
+  root scroller, variation grid and bass row all carry `dir="ltr"` (+ `unicode-bidi: isolate` on
+  `.chord`). Don't let an RTL container reorder them into `#C`.
+- **Performance transport is LTR:** the prev·play·next block is forced `dir="ltr"` (standard
+  media-player convention) so the glyphs read the same regardless of the app's RTL chrome — do
+  NOT re-add the old `scaleX(-1)` chevron mirroring.
+- **Undo/redo:** per-song snapshot stacks live in `stores/app.ts`; `updateSong` records by default.
+  Performance-chrome writes (live scroll-speed persistence, in-stage font bumps) pass
+  `{ record: false }` so they don't pollute the editor's undo history. `undoState` is the derived
+  can-undo/can-redo flag. Editor binds Cmd/Ctrl+Z and Shift/Y.
+- **Chord panel reset:** the panel is wrapped in `{#key selectionKey}` in EditView so moving the
+  selection re-mounts it (seeded from any chord already at that spot), instead of carrying the last
+  chord onto the next word. Typed entry (`parseChord` in chords.ts) lets you key in `C#m7/G`.
+- **Scroll lead:** after count-in, the stage holds the scroll for `SCROLL_LEAD_BARS` (4) bars so the
+  opening line doesn't slide off early. Lead timer is cleared on pause/transition/exit like the others.
 
 ## Data & offline
 

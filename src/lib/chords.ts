@@ -114,3 +114,64 @@ export function formatChord(
 
 /** Roots grouped for the horizontal scroller (naturals + accidentals interleaved). */
 export const ROOT_LIST: readonly Root[] = ROOTS;
+
+// ---- Parsing (typed chord input in the panel) ------------------------------
+
+/** Normalise a suffix to a lookup key: unicode ♯/♭ → #/b, lower-cased. */
+function normSuffix(s: string): string {
+  return s.replace(/♯/g, '#').replace(/♭/g, 'b').toLowerCase();
+}
+
+/** suffix / id / label (normalised) → variation id, for typed lookup. */
+const SUFFIX_TO_ID = new Map<string, Variation>();
+for (const v of VARIATIONS) {
+  SUFFIX_TO_ID.set(normSuffix(v.suffix), v.id);
+  SUFFIX_TO_ID.set(normSuffix(v.id), v.id);
+  SUFFIX_TO_ID.set(normSuffix(v.label), v.id);
+}
+// Common spoken aliases.
+SUFFIX_TO_ID.set('maj', 'maj');
+SUFFIX_TO_ID.set('major', 'maj');
+SUFFIX_TO_ID.set('-', 'min');
+SUFFIX_TO_ID.set('min', 'min');
+SUFFIX_TO_ID.set('minor', 'min');
+SUFFIX_TO_ID.set('°', 'dim');
+SUFFIX_TO_ID.set('+', 'aug');
+
+const ROOT_SET = new Set<string>(ROOTS as readonly string[]);
+
+function parseNote(raw: string, acc: Accidental): string | undefined {
+  const m = /^([A-Ga-g])([#b]*)/.exec(raw.trim());
+  if (!m) return undefined;
+  const name = m[1].toUpperCase() + m[2];
+  if (PITCH[name] === undefined) return undefined;
+  return ROOT_SET.has(name) ? name : spell(name, acc);
+}
+
+/**
+ * Parse a typed chord like `C`, `Am`, `C#m7`, `Gsus4`, `D/F#`, `Bbmaj7/D`
+ * into a structured Chord, or null when it isn't a recognisable chord. Roots
+ * are kept as typed when they're a known spelling, otherwise respelled to the
+ * preferred accidental. Accepts both `#`/`b` and `♯`/`♭`.
+ */
+export function parseChord(input: string, acc: Accidental = 'sharps'): Chord | null {
+  const s = input.trim().replace(/♯/g, '#').replace(/♭/g, 'b');
+  if (!s) return null;
+  const m = /^([A-Ga-g])([#b]*)(.*)$/.exec(s);
+  if (!m) return null;
+  const rootRaw = m[1].toUpperCase() + m[2];
+  if (PITCH[rootRaw] === undefined) return null;
+  const root = (ROOT_SET.has(rootRaw) ? rootRaw : spell(rootRaw, acc)) as Root;
+
+  let rest = m[3];
+  let bass: string | undefined;
+  const slash = rest.indexOf('/');
+  if (slash >= 0) {
+    bass = parseNote(rest.slice(slash + 1), acc);
+    rest = rest.slice(0, slash);
+  }
+
+  const variation = SUFFIX_TO_ID.get(normSuffix(rest.trim()));
+  if (variation === undefined) return null;
+  return { root, variation, bass };
+}
