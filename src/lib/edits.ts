@@ -4,7 +4,7 @@
  * Every function mutates the passed song draft in place — call inside `updateSong`.
  */
 import type { Song, Line, Chord, Note } from './model';
-import { lineText } from './model';
+import { lineText, uid } from './model';
 
 function findLine(song: Song, lineId: string): Line | undefined {
   return song.lines.find((l) => l.id === lineId);
@@ -77,6 +77,40 @@ export function removeNote(song: Song, lineId: string, noteIndex: number): void 
   const line = findLine(song, lineId);
   if (!line) return;
   line.notes.splice(noteIndex, 1);
+}
+
+// ---- Line structure ops ----------------------------------------------------
+
+/** Insert a fresh empty line above or below the given line. Returns its id. */
+export function addLineRelative(song: Song, lineId: string, where: 'above' | 'below'): string {
+  const idx = song.lines.findIndex((l) => l.id === lineId);
+  if (idx === -1) return '';
+  const line: Line = { id: uid('ln_'), segments: [{ text: '' }], notes: [] };
+  song.lines.splice(where === 'above' ? idx : idx + 1, 0, line);
+  return line.id;
+}
+
+/** Move a line one slot toward the start or end of the song. */
+export function moveLine(song: Song, lineId: string, dir: -1 | 1): void {
+  const idx = song.lines.findIndex((l) => l.id === lineId);
+  if (idx === -1) return;
+  const target = idx + dir;
+  if (target < 0 || target >= song.lines.length) return;
+  const [line] = song.lines.splice(idx, 1);
+  song.lines.splice(target, 0, line);
+}
+
+/** Duplicate a line (deep copy incl. chords/notes/section) right after it. */
+export function duplicateLine(song: Song, lineId: string): string {
+  const idx = song.lines.findIndex((l) => l.id === lineId);
+  if (idx === -1) return '';
+  const src = song.lines[idx];
+  const copy: Line = {
+    ...structuredClone(src),
+    id: uid('ln_'),
+  };
+  song.lines.splice(idx + 1, 0, copy);
+  return copy.id;
 }
 
 /** Replace a line's text, rebuilding into a single segment (drops chords/notes). */

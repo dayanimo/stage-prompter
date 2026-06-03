@@ -80,7 +80,7 @@
 
   // --- Count-in & click (global settings) ------------------------------------
   function setCountIn(e: Event) {
-    const v = Math.min(2, Math.max(0, +(e.target as HTMLSelectElement).value));
+    const v = Math.min(8, Math.max(0, +(e.target as HTMLSelectElement).value));
     updateSettings((s) => (s.countInBars = v));
   }
   function setClick(e: Event) {
@@ -151,6 +151,10 @@
       <option value={0}>ללא</option>
       <option value={1}>1</option>
       <option value={2}>2</option>
+      <option value={3}>3</option>
+      <option value={4}>4</option>
+      <option value={6}>6</option>
+      <option value={8}>8</option>
     </select>
   </div>
 

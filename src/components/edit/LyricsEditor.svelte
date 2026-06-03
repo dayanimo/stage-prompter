@@ -7,9 +7,17 @@
    * All model writes go through `updateSong` + the pure helpers in $lib/edits.
    */
   import type { Song, Note, SectionKind } from '$lib/model';
-  import { lineText, createLine, resolveTheme } from '$lib/model';
+  import { lineText, createLine, resolveTheme, sectionLabel, SECTION_LABELS } from '$lib/model';
   import { updateSong, setSelection, session, settings } from '$stores/app';
-  import { editLineText, applyNote, removeChord, removeNote } from '$lib/edits';
+  import {
+    editLineText,
+    applyNote,
+    removeChord,
+    removeNote,
+    addLineRelative,
+    moveLine,
+    duplicateLine,
+  } from '$lib/edits';
   import SongLine from '$components/common/SongLine.svelte';
   import NotePopover from './NotePopover.svelte';
 
@@ -28,16 +36,32 @@
   /** Note being edited in the popover (null = creating new). */
   let editingNote = $state<{ lineId: string; index: number } | null>(null);
 
-  const SECTIONS: { id: SectionKind; label: string }[] = [
-    { id: '', label: '—' },
-    { id: 'intro', label: 'אינטרו' },
-    { id: 'verse', label: 'בית' },
-    { id: 'prechorus', label: 'טרום-פזמון' },
-    { id: 'chorus', label: 'פזמון' },
-    { id: 'bridge', label: 'גשר' },
-    { id: 'solo', label: 'סולו' },
-    { id: 'outro', label: 'אאוטרו' },
+  // Preset section labels offered in the datalist; the field also accepts any
+  // custom text the user types ("הוסף את המילה מעבר לרשימה").
+  const SECTION_PRESETS = Object.values(SECTION_LABELS);
+  const LABEL_TO_ID: Record<string, string> = Object.fromEntries(
+    Object.entries(SECTION_LABELS).map(([id, label]) => [label, id]),
+  );
+
+  // Compact swatches for the per-line section badge styling.
+  const SECTION_TEXT_SWATCHES = [
+    'oklch(0.72 0.118 200)',
+    'oklch(0.84 0.15 75)',
+    'oklch(0.7 0.2 25)',
+    'oklch(0.78 0.16 150)',
+    'oklch(0.72 0.17 300)',
+    'oklch(0.97 0 0)',
   ];
+  const SECTION_BG_SWATCHES = [
+    '',
+    'oklch(0.72 0.118 200 / 0.22)',
+    'oklch(0.8 0.14 75 / 0.22)',
+    'oklch(0.64 0.205 25 / 0.22)',
+    'oklch(0.72 0.15 150 / 0.22)',
+  ];
+
+  /** Which line's section-style popover is open, if any. */
+  let sectionStyleLine = $state<string | null>(null);
 
   const lineDir = $derived(song.dir === 'ltr' ? 'ltr' : song.dir === 'rtl' ? 'rtl' : 'auto');
 
@@ -66,21 +90,57 @@
     updateSong(song.id, (s) => removeChord(s, lineId, segmentIndex));
   }
 
-  function setSection(lineId: string, section: SectionKind) {
+  /** Section field accepts a preset Hebrew label OR any custom text. */
+  function setSectionText(lineId: string, text: string) {
+    const trimmed = text.trim();
+    const value = trimmed ? (LABEL_TO_ID[trimmed] ?? trimmed) : '';
     updateSong(song.id, (s) => {
       const line = s.lines.find((l) => l.id === lineId);
       if (!line) return;
-      if (section) line.section = section;
-      else delete line.section;
+      if (value) line.section = value as SectionKind;
+      else {
+        delete line.section;
+        delete line.sectionColor;
+        delete line.sectionBg;
+      }
     });
   }
 
-  function addLineAfter(lineId: string) {
+  function setSectionColor(lineId: string, color: string | undefined) {
     updateSong(song.id, (s) => {
-      const idx = s.lines.findIndex((l) => l.id === lineId);
-      const newLine = createLine('');
-      s.lines.splice(idx + 1, 0, newLine);
+      const line = s.lines.find((l) => l.id === lineId);
+      if (!line) return;
+      if (color) line.sectionColor = color;
+      else delete line.sectionColor;
     });
+  }
+  function setSectionBg(lineId: string, bg: string | undefined) {
+    updateSong(song.id, (s) => {
+      const line = s.lines.find((l) => l.id === lineId);
+      if (!line) return;
+      if (bg) line.sectionBg = bg;
+      else delete line.sectionBg;
+    });
+  }
+
+  function addAdjacentLine(lineId: string, where: 'above' | 'below') {
+    let newId = '';
+    updateSong(song.id, (s) => {
+      newId = addLineRelative(s, lineId, where);
+    });
+    if (newId) queueFocus(newId, 0);
+  }
+
+  function moveLineBy(lineId: string, dir: -1 | 1) {
+    updateSong(song.id, (s) => moveLine(s, lineId, dir));
+  }
+
+  function dupLine(lineId: string) {
+    let newId = '';
+    updateSong(song.id, (s) => {
+      newId = duplicateLine(s, lineId);
+    });
+    if (newId) queueFocus(newId, 0);
   }
 
   function addLineEnd() {
@@ -162,13 +222,18 @@
     editingNote = null;
   }
 
-  function saveNote(lineId: string, data: { label: string; highlight: string }) {
+  function saveNote(lineId: string, data: { label: string; highlight: string; color?: string }) {
     if (editingNote && editingNote.lineId === lineId) {
       // Editing an existing note keeps its range.
       const line = song.lines.find((l) => l.id === lineId);
       const existing = line?.notes[editingNote.index];
       if (existing) {
-        const updated: Note = { ...existing, label: data.label, highlight: data.highlight };
+        const updated: Note = {
+          ...existing,
+          label: data.label,
+          highlight: data.highlight,
+          color: data.color,
+        };
         updateSong(song.id, (s) => applyNote(s, lineId, updated));
       }
     } else if (selection && selection.lineId === lineId) {
@@ -177,6 +242,7 @@
         end: selection.end,
         label: data.label,
         highlight: data.highlight,
+        color: data.color,
       };
       updateSong(song.id, (s) => applyNote(s, lineId, note));
     }
@@ -200,6 +266,11 @@
 </script>
 
 <div class="editor" dir={song.dir === 'ltr' ? 'ltr' : 'rtl'}>
+  <datalist id="section-presets">
+    {#each SECTION_PRESETS as p (p)}
+      <option value={p}></option>
+    {/each}
+  </datalist>
   {#each song.lines as line, idx (line.id)}
     {@const isSelected = selection?.lineId === line.id}
     <div class="line-block" class:active={isSelected}>
@@ -219,16 +290,28 @@
 
       <!-- Raw editable text + per-line controls -->
       <div class="controls">
-        <select
-          class="section"
-          aria-label="תגית קטע"
-          value={line.section ?? ''}
-          onchange={(e) => setSection(line.id, (e.currentTarget as HTMLSelectElement).value)}
-        >
-          {#each SECTIONS as sec (sec.id)}
-            <option value={sec.id}>{sec.label}</option>
-          {/each}
-        </select>
+        <div class="section-field">
+          <input
+            class="section"
+            list="section-presets"
+            aria-label="תגית קטע (בחר או הקלד)"
+            placeholder="קטע…"
+            value={sectionLabel(line.section)}
+            onchange={(e) => setSectionText(line.id, (e.currentTarget as HTMLInputElement).value)}
+          />
+          {#if line.section}
+            <button
+              type="button"
+              class="icon swatch-btn"
+              class:active={sectionStyleLine === line.id}
+              title="צבע תווית הקטע"
+              aria-label="צבע תווית הקטע"
+              style="color:{line.sectionColor || 'var(--accent)'};"
+              onclick={() =>
+                (sectionStyleLine = sectionStyleLine === line.id ? null : line.id)}
+            >●</button>
+          {/if}
+        </div>
 
         <input
           class="line-input"
@@ -246,18 +329,48 @@
           <button
             type="button"
             class="icon"
-            title="הוסף הערה על הבחירה"
-            aria-label="הוסף הערה"
-            disabled={!canAddNote(line.id)}
-            onclick={() => openNotePopover(line.id)}
-          >♪</button>
+            title="הזז שורה למעלה"
+            aria-label="הזז שורה למעלה"
+            disabled={idx === 0}
+            onclick={() => moveLineBy(line.id, -1)}
+          >↑</button>
           <button
             type="button"
             class="icon"
-            title="הוסף שורה למטה"
-            aria-label="הוסף שורה"
-            onclick={() => addLineAfter(line.id)}
-          >+</button>
+            title="הזז שורה למטה"
+            aria-label="הזז שורה למטה"
+            disabled={idx === song.lines.length - 1}
+            onclick={() => moveLineBy(line.id, 1)}
+          >↓</button>
+          <button
+            type="button"
+            class="icon"
+            title="הוסף שורה מעל"
+            aria-label="הוסף שורה מעל"
+            onclick={() => addAdjacentLine(line.id, 'above')}
+          >⤒</button>
+          <button
+            type="button"
+            class="icon"
+            title="הוסף שורה מתחת"
+            aria-label="הוסף שורה מתחת"
+            onclick={() => addAdjacentLine(line.id, 'below')}
+          >⤓</button>
+          <button
+            type="button"
+            class="icon"
+            title="שכפל שורה"
+            aria-label="שכפל שורה"
+            onclick={() => dupLine(line.id)}
+          >⧉</button>
+          <button
+            type="button"
+            class="icon"
+            title="הוסף הערה / צבע על הבחירה"
+            aria-label="הוסף הערה או צבע"
+            disabled={!canAddNote(line.id)}
+            onclick={() => openNotePopover(line.id)}
+          >♪</button>
           <button
             type="button"
             class="icon danger"
@@ -267,6 +380,56 @@
           >✕</button>
         </div>
       </div>
+
+      {#if sectionStyleLine === line.id && line.section}
+        <div class="section-style">
+          <div class="ss-group">
+            <span class="ss-lbl">צבע טקסט</span>
+            <div class="ss-swatches">
+              {#each SECTION_TEXT_SWATCHES as c (c)}
+                <button
+                  type="button"
+                  class="ss-swatch"
+                  class:sel={line.sectionColor === c}
+                  style="background:{c};"
+                  aria-label={`צבע ${c}`}
+                  onclick={() => setSectionColor(line.id, c)}
+                ></button>
+              {/each}
+              <button
+                type="button"
+                class="ss-swatch none"
+                class:sel={!line.sectionColor}
+                aria-label="ברירת מחדל"
+                onclick={() => setSectionColor(line.id, undefined)}>∅</button>
+            </div>
+          </div>
+          <div class="ss-group">
+            <span class="ss-lbl">רקע</span>
+            <div class="ss-swatches">
+              {#each SECTION_BG_SWATCHES as c (c)}
+                {#if c}
+                  <button
+                    type="button"
+                    class="ss-swatch"
+                    class:sel={line.sectionBg === c}
+                    style="background:{c};"
+                    aria-label={`רקע ${c}`}
+                    onclick={() => setSectionBg(line.id, c)}
+                  ></button>
+                {:else}
+                  <button
+                    type="button"
+                    class="ss-swatch none"
+                    class:sel={!line.sectionBg}
+                    aria-label="ללא רקע"
+                    onclick={() => setSectionBg(line.id, undefined)}>∅</button>
+                {/if}
+              {/each}
+            </div>
+          </div>
+        </div>
+      {/if}
 
       <!-- Existing notes on this line: chips to edit/delete -->
       {#if line.notes.length > 0}
@@ -338,8 +501,14 @@
     align-items: center;
     gap: var(--sp-3);
   }
-  .section {
+  .section-field {
     flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+  }
+  .section {
+    width: 96px;
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: var(--r-md);
@@ -348,11 +517,77 @@
     font: inherit;
     font-size: var(--text-xs);
     height: 32px;
-    cursor: pointer;
   }
   .section:hover {
     border-color: var(--border-2);
     color: var(--ink);
+  }
+  .section:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+    border-color: transparent;
+  }
+  .swatch-btn {
+    font-size: 14px;
+  }
+  .swatch-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .section-style {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+    margin-top: var(--sp-3);
+    padding: var(--sp-3);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+  }
+  .ss-group {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+  }
+  .ss-lbl {
+    font-size: var(--text-xs);
+    color: var(--ink-3);
+    font-weight: 600;
+  }
+  .ss-swatches {
+    display: flex;
+    gap: var(--sp-2);
+  }
+  .ss-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--r-full);
+    border: 2px solid var(--border-2);
+    cursor: pointer;
+    padding: 0;
+    transition:
+      transform var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+  .ss-swatch:hover {
+    transform: scale(1.1);
+  }
+  .ss-swatch.sel {
+    border-color: var(--accent);
+  }
+  .ss-swatch.none {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-3);
+    font-size: 11px;
+    background:
+      linear-gradient(45deg, var(--surface-3) 25%, transparent 25%) 0 0 / 10px 10px,
+      linear-gradient(-45deg, var(--surface-3) 25%, transparent 25%) 0 5px / 10px 10px;
+  }
+  .ss-swatch:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
   }
   .line-input {
     flex: 1;
@@ -379,6 +614,8 @@
   }
   .line-actions {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: var(--sp-2);
   }
   .icon {

@@ -10,7 +10,7 @@
    */
   import type { Line, SongTheme, Direction, Note } from '$lib/model';
   import type { SelectionRange } from '$stores/app';
-  import { lineText } from '$lib/model';
+  import { lineText, sectionLabel } from '$lib/model';
   import { formatChord } from '$lib/chords';
 
   interface Props {
@@ -206,11 +206,18 @@
   dir={baseDir}
   style="--lyric:{theme.lyricSize}px; --chord:{theme.chordSize}px; --noteSize:{theme.noteSize}px; --note-color:{theme.note};"
 >
+  {#if line.section}
+    <span
+      class="section-badge"
+      style="color:{line.sectionColor || 'var(--accent, oklch(0.72 0.118 200))'}; {line.sectionBg ? `background:${line.sectionBg};` : ''}"
+      >{sectionLabel(line.section)}</span
+    >
+  {/if}
   {#each cells as cell, i (i)}
     {@const startNote = noteStartingAt(cell.offset)}
     <span class="cell" dir={strongDir(cell.text, baseDir)}>
-      <span class="top" aria-hidden={!cell.chord && !startNote}>
-        {#if startNote}
+      <span class="top" aria-hidden={!cell.chord && !(startNote && startNote.label)}>
+        {#if startNote && startNote.label}
           <span class="note-label" style="color:{theme.note}; font-size:var(--noteSize);"
             >{startNote.label}</span
           >
@@ -236,12 +243,12 @@
       </span>
       <span
         class="lyric"
-        class:noted={!!cell.note}
+        class:noted={!!cell.note?.highlight}
         data-offset={cell.offset}
         style="
-          color:{theme.text};
+          color:{cell.note?.color || theme.text};
           font-size:var(--lyric);
-          {cell.note ? `background:${cell.note.highlight};` : ''}
+          {cell.note?.highlight ? `background:${cell.note.highlight};` : ''}
         "
       >{cell.text}</span>
     </span>
@@ -255,6 +262,20 @@
     align-items: flex-end;
     text-align: start;
     line-height: 1.15;
+  }
+  /* Section tag (intro / verse / chorus / custom) on its own row above the line. */
+  .section-badge {
+    flex: 0 0 100%;
+    align-self: flex-start;
+    width: fit-content;
+    font-size: max(12px, calc(var(--chord) * 0.62));
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+    padding: 0.1em 0.5em;
+    margin-block-end: 0.15em;
+    border-radius: var(--r-sm);
+    unicode-bidi: isolate;
   }
   .cell {
     display: inline-flex;

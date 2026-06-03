@@ -32,8 +32,9 @@ export interface Segment {
 export interface Note {
   start: number; // inclusive char index into the line's full text
   end: number; // exclusive
-  label: string; // e.g. 'Guitar solo'
-  highlight: string; // CSS color for the highlighted run
+  label: string; // e.g. 'Guitar solo' — may be empty for a pure colour mark
+  highlight: string; // CSS color for the highlighted run background ('' = none)
+  color?: string; // optional CSS color for the run's text itself
 }
 
 export type SectionKind =
@@ -44,6 +45,25 @@ export interface Line {
   segments: Segment[];
   notes: Note[];
   section?: SectionKind;
+  sectionColor?: string; // optional text color for the section badge
+  sectionBg?: string; // optional background color for the section badge
+}
+
+/** Hebrew display label for the known section kinds (custom strings show as-is). */
+export const SECTION_LABELS: Record<string, string> = {
+  intro: 'אינטרו',
+  verse: 'בית',
+  prechorus: 'טרום-פזמון',
+  chorus: 'פזמון',
+  bridge: 'גשר',
+  solo: 'סולו',
+  outro: 'אאוטרו',
+};
+
+/** Resolve a section value to its display label (preset → Hebrew, else literal). */
+export function sectionLabel(section: string | undefined): string {
+  if (!section) return '';
+  return SECTION_LABELS[section] ?? section;
 }
 
 // ---- Theme / song / set ----------------------------------------------------

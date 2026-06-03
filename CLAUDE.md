@@ -99,6 +99,15 @@ clones, persists to IndexedDB, and refreshes the store. Don't write `db` directl
   chord onto the next word. Typed entry (`parseChord` in chords.ts) lets you key in `C#m7/G`.
 - **Scroll lead:** after count-in, the stage holds the scroll for `SCROLL_LEAD_BARS` (4) bars so the
   opening line doesn't slide off early. Lead timer is cleared on pause/transition/exit like the others.
+- **Notes are also colour marks:** `Note.label` is optional and `Note.color` (text colour) was added
+  alongside `highlight` (background, `''` = none). An empty-label note is a pure colouring of the run.
+  `SongLine` renders the label only when non-empty and applies `color`/`highlight` to the lyric run.
+- **Sections render everywhere:** `Line.section` is a free string (preset id like `chorus` → Hebrew via
+  `sectionLabel()`, or any custom text). `SongLine` draws a `.section-badge` row above the line in BOTH
+  editor preview and performance, styled by per-line `sectionColor`/`sectionBg`. The editor field is a
+  `<input list="section-presets">` so users can pick a preset or type their own.
+- **Line ops** (`edits.ts`): `addLineRelative` (above/below), `moveLine` (±1), `duplicateLine` (deep
+  clone incl. chords/notes/section). All run inside `updateSong`, so they're undoable.
 
 ## Data & offline
 
