@@ -108,6 +108,14 @@ clones, persists to IndexedDB, and refreshes the store. Don't write `db` directl
   `<input list="section-presets">` so users can pick a preset or type their own.
 - **Line ops** (`edits.ts`): `addLineRelative` (above/below), `moveLine` (±1), `duplicateLine` (deep
   clone incl. chords/notes/section). All run inside `updateSong`, so they're undoable.
+- **Internal remote** (`lib/remote.ts` + `RemoteView.svelte`, route `#remote`): a same-origin
+  `BroadcastChannel` carries `cmd` (remote→stage) and `state` (stage→remote) — no server, no cost,
+  works offline across tabs/windows on one machine. The Stage publishes state on change and on
+  `hello`, and dispatches commands to its existing transport functions. **Gotcha:** `send()` uses
+  the localStorage path ONLY when `BroadcastChannel` is unavailable — firing both delivers every
+  command twice (it once advanced two songs per click). Each side ignores its own message kind, so
+  there's no feedback loop. Cross-device phone control would add a second transport (WebRTC/relay)
+  behind the same `RemoteChannel` interface; the UI wouldn't change.
 
 ## Data & offline
 

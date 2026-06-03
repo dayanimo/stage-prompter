@@ -21,6 +21,7 @@
     onExit: () => void;
     onFontUp: () => void;
     onFontDown: () => void;
+    onRemote: () => void;
     songIndex: number;
     songCount: number;
     songTitle: string;
@@ -44,6 +45,7 @@
     onExit,
     onFontUp,
     onFontDown,
+    onRemote,
     songIndex,
     songCount,
     songTitle,
@@ -138,6 +140,14 @@
 >
   <button class="ctl exit" onclick={onExit} aria-label="יציאה" title="יציאה (Esc)">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+  </button>
+
+  <button class="ctl" onclick={onRemote} aria-label="פתח שלט" title="פתח חלון שלט">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="7" y="2.5" width="10" height="19" rx="3" />
+      <circle cx="12" cy="17.5" r="1.4" fill="currentColor" stroke="none" />
+      <path d="M9.5 6h5M12 8.5v3" />
+    </svg>
   </button>
 
   <div class="transport" dir="ltr">

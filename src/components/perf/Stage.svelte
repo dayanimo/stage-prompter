@@ -18,14 +18,15 @@
     updateSong,
     updateSettings,
   } from '$stores/app';
-  import { resolveTheme, resolveSectionStyle, type Song } from '$lib/model';
+  import { resolveTheme, resolveSectionStyle, lineText, type Song } from '$lib/model';
   import SongLine from '$components/common/SongLine.svelte';
   import Metronome from '$components/perf/Metronome.svelte';
   import ScrollControls from '$components/perf/ScrollControls.svelte';
   import { createAutoScroller, type AutoScroller } from '$lib/autoscroll';
   import { installShortcuts } from '$lib/shortcuts';
   import type { BeatInfo } from '$lib/metronome';
-  import { untrack } from 'svelte';
+  import { createRemoteChannel, type RemoteChannel, type RemoteCommand } from '$lib/remote';
+  import { untrack, onMount } from 'svelte';
 
   // ---- Active song resolution ------------------------------------------------
   const songs = $derived($setSongs);
@@ -422,6 +423,79 @@
 
   // Metronome runs while playing (incl. count-in).
   const metroRunning = $derived(playing);
+
+  // ---- Internal remote control (BroadcastChannel; no server) -----------------
+  function remoteRestart(): void {
+    clearAdvance();
+    clearLead();
+    if (scrollEl) scrollEl.scrollTop = 0;
+    lineIndex = 0;
+    if (!playing) beginPlay();
+  }
+
+  function handleRemoteCommand(cmd: RemoteCommand): void {
+    switch (cmd) {
+      case 'toggle': togglePlay(); break;
+      case 'next': go(1); break;
+      case 'prev': go(-1); break;
+      case 'speedUp': bumpSpeed(SPEED_STEP); break;
+      case 'speedDown': bumpSpeed(-SPEED_STEP); break;
+      case 'fontUp': bumpFont(FONT_STEP); break;
+      case 'fontDown': bumpFont(-FONT_STEP); break;
+      case 'restart': remoteRestart(); break;
+      case 'lineNext': nextLineStep(); break;
+      case 'linePrev': prevLineStep(); break;
+    }
+  }
+
+  let remote: RemoteChannel | null = null;
+
+  function publishState(): void {
+    if (!remote || !song) return;
+    remote.send({
+      kind: 'state',
+      state: {
+        songTitle: song.title,
+        songIndex: index,
+        songCount: songCount,
+        playing,
+        countingIn,
+        speed,
+        lineView,
+        lineIndex: lineView ? lineIndex : -1,
+        lineCount,
+        lines: song.lines.map(lineText),
+        dir,
+        ts: 0,
+      },
+    });
+  }
+
+  onMount(() => {
+    const ch = createRemoteChannel();
+    remote = ch;
+    const off = ch.onMessage((m) => {
+      if (m.kind === 'cmd') handleRemoteCommand(m.cmd);
+      else if (m.kind === 'hello') publishState();
+    });
+    return () => {
+      off();
+      ch.close();
+      remote = null;
+    };
+  });
+
+  // Re-publish whenever anything a remote mirrors changes.
+  $effect(() => {
+    // Touch the reactive deps so this re-runs on change.
+    void [song?.id, index, songCount, playing, countingIn, speed, lineView, lineIndex, lineCount, dir];
+    publishState();
+  });
+
+  function openRemote(): void {
+    const url = location.href.split('#')[0] + '#remote';
+    window.open(url, 'sp-remote', 'width=420,height=760');
+  }
 </script>
 
 {#if song && theme}
@@ -513,6 +587,7 @@
       onExit={exit}
       onFontUp={() => bumpFont(FONT_STEP)}
       onFontDown={() => bumpFont(-FONT_STEP)}
+      onRemote={openRemote}
       songIndex={index}
       songCount={songCount}
       songTitle={song.title}
