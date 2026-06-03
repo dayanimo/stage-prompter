@@ -18,7 +18,7 @@
     updateSong,
     updateSettings,
   } from '$stores/app';
-  import { resolveTheme, type Song } from '$lib/model';
+  import { resolveTheme, resolveSectionStyle, type Song } from '$lib/model';
   import SongLine from '$components/common/SongLine.svelte';
   import Metronome from '$components/perf/Metronome.svelte';
   import ScrollControls from '$components/perf/ScrollControls.svelte';
@@ -467,6 +467,7 @@
               transpose={song.transpose ?? 0}
               accidental={$settings.accidentalPref}
               dir={song.dir}
+              sectionStyle={resolveSectionStyle(song, activeLine)}
             />
           </div>
         {/if}
@@ -478,6 +479,7 @@
               transpose={song.transpose ?? 0}
               accidental={$settings.accidentalPref}
               dir={song.dir}
+              sectionStyle={resolveSectionStyle(song, nextLine)}
             />
           </div>
         {/if}
@@ -493,6 +495,7 @@
               transpose={song.transpose ?? 0}
               accidental={$settings.accidentalPref}
               dir={song.dir}
+              sectionStyle={resolveSectionStyle(song, line)}
             />
           {/each}
           <div class="tail" aria-hidden="true"></div>

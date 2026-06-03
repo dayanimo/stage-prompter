@@ -66,6 +66,18 @@ export function sectionLabel(section: string | undefined): string {
   return SECTION_LABELS[section] ?? section;
 }
 
+/** Effective badge style for a line: per-line override wins over per-type default. */
+export function resolveSectionStyle(
+  song: Pick<Song, 'sectionStyles'>,
+  line: Pick<Line, 'section' | 'sectionColor' | 'sectionBg'>,
+): { color?: string; bg?: string } {
+  const byType = (line.section && song.sectionStyles?.[line.section]) || {};
+  return {
+    color: line.sectionColor ?? byType.color,
+    bg: line.sectionBg ?? byType.bg,
+  };
+}
+
 // ---- Theme / song / set ----------------------------------------------------
 
 export interface SongTheme {
@@ -96,6 +108,8 @@ export interface Song {
   transpose?: number; // semitones applied to displayed chords
   theme?: SongTheme;
   scrollSpeed?: number; // remembered per-song auto-scroll speed
+  /** Per-section-type badge colors (by section id/name); per-line values override these. */
+  sectionStyles?: Record<string, { color?: string; bg?: string }>;
   createdAt: number;
   updatedAt: number;
 }

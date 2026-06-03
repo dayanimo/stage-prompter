@@ -20,6 +20,8 @@
     accidental: 'sharps' | 'flats';
     dir: Direction;
     editable?: boolean;
+    /** Resolved section-badge style (per-line override merged over per-type). */
+    sectionStyle?: { color?: string; bg?: string };
     onselect?: (range: SelectionRange) => void;
     onchordclick?: (segmentIndex: number) => void;
   }
@@ -31,9 +33,13 @@
     accidental,
     dir,
     editable = false,
+    sectionStyle,
     onselect,
     onchordclick,
   }: Props = $props();
+
+  // Fall back to the line's own values when no resolved style is supplied.
+  const badge = $derived(sectionStyle ?? { color: line.sectionColor, bg: line.sectionBg });
 
   /**
    * A "cell" is the atomic render unit: a run of text that shares a uniform
@@ -209,7 +215,7 @@
   {#if line.section}
     <span
       class="section-badge"
-      style="color:{line.sectionColor || 'var(--accent, oklch(0.72 0.118 200))'}; {line.sectionBg ? `background:${line.sectionBg};` : ''}"
+      style="color:{badge.color || 'var(--accent, oklch(0.72 0.118 200))'}; {badge.bg ? `background:${badge.bg};` : ''}"
       >{sectionLabel(line.section)}</span
     >
   {/if}

@@ -7,7 +7,14 @@
    * All model writes go through `updateSong` + the pure helpers in $lib/edits.
    */
   import type { Song, Note, SectionKind } from '$lib/model';
-  import { lineText, createLine, resolveTheme, sectionLabel, SECTION_LABELS } from '$lib/model';
+  import {
+    lineText,
+    createLine,
+    resolveTheme,
+    sectionLabel,
+    SECTION_LABELS,
+    resolveSectionStyle,
+  } from '$lib/model';
   import { updateSong, setSelection, session, settings } from '$stores/app';
   import {
     editLineText,
@@ -283,6 +290,7 @@
           {accidental}
           dir={lineDir}
           editable
+          sectionStyle={resolveSectionStyle(song, line)}
           onselect={onPreviewSelect}
           onchordclick={(seg) => onChordClick(line.id, seg)}
         />
