@@ -8,6 +8,26 @@
 import { exportSnapshot, importSnapshot, type Snapshot } from './db';
 import { loadAll } from '$stores/app';
 
+/** Device-local UI prefs (kept in localStorage, not IndexedDB). */
+const PREF_KEYS = ['sp.panelWidth', 'sp.favPos'];
+
+function collectPrefs(): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (typeof localStorage === 'undefined') return out;
+  for (const k of PREF_KEYS) {
+    const v = localStorage.getItem(k);
+    if (v != null) out[k] = v;
+  }
+  return out;
+}
+
+function restorePrefs(prefs: Record<string, string> | undefined): void {
+  if (!prefs || typeof localStorage === 'undefined') return;
+  for (const k of PREF_KEYS) {
+    if (typeof prefs[k] === 'string') localStorage.setItem(k, prefs[k]);
+  }
+}
+
 /** Trigger a browser download of `data` serialized as pretty JSON. */
 function save(data: unknown, filename: string): void {
   const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -39,6 +59,7 @@ function safeName(name: string): string {
 /** Export the entire library (songs, sets, settings) as a backup file. */
 export async function downloadSnapshot(): Promise<void> {
   const snap = await exportSnapshot();
+  snap.prefs = collectPrefs();
   save(snap, 'stage-prompter-backup.json');
 }
 
@@ -116,5 +137,6 @@ export async function importFromFile(
   }
 
   await importSnapshot(parsed, mode);
+  restorePrefs(parsed.prefs);
   await loadAll();
 }

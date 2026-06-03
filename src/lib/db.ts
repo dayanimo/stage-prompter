@@ -94,6 +94,8 @@ export interface Snapshot {
   songs: Song[];
   sets: SetList[];
   settings: AppSettings;
+  /** Device-local UI prefs kept in localStorage (panel width, panel position…). */
+  prefs?: Record<string, string>;
 }
 
 export async function exportSnapshot(): Promise<Snapshot> {
