@@ -114,8 +114,16 @@ clones, persists to IndexedDB, and refreshes the store. Don't write `db` directl
   `hello`, and dispatches commands to its existing transport functions. **Gotcha:** `send()` uses
   the localStorage path ONLY when `BroadcastChannel` is unavailable — firing both delivers every
   command twice (it once advanced two songs per click). Each side ignores its own message kind, so
-  there's no feedback loop. Cross-device phone control would add a second transport (WebRTC/relay)
-  behind the same `RemoteChannel` interface; the UI wouldn't change.
+  there's no feedback loop.
+- **Cross-device phone remote** (`lib/peer.ts`): WebRTC via PeerJS behind the same message protocol.
+  The Stage hosts a peer (`createStagePeer`) lazily when pairing opens and shows a QR of
+  `#remote?p=<id>` (`RemotePairing.svelte`); the phone loads that URL and `createRemotePeer` connects.
+  PeerJS's free public server is used ONLY for the handshake — command/state then flow peer-to-peer.
+  Stage `publishState()` fans out to BOTH the BroadcastChannel and the peer; commands from either are
+  handled the same way. **Route gotcha:** the remote URL carries a query (`#remote?p=…`), so App.svelte
+  matches `location.hash.startsWith('#remote')`, NOT `=== '#remote'`. **Verification caveat:** the P2P
+  leg can't be exercised by two tabs in a headless sandbox (mDNS/NAT-hairpin), so it needs real
+  phone+laptop testing on the same WiFi; networks with AP/client isolation block P2P (would need TURN).
 
 ## Data & offline
 

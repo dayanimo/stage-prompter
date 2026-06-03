@@ -10,17 +10,19 @@
 
   // The remote-control page is a separate, DB-free route (#remote): it only
   // talks to the Stage over the internal channel, so it skips loadAll().
-  let isRemote = $state(typeof location !== 'undefined' && location.hash === '#remote');
+  // The remote route may carry a peer id query: `#remote` or `#remote?p=<id>`.
+  const atRemote = () => location.hash.startsWith('#remote');
+  let isRemote = $state(typeof location !== 'undefined' && atRemote());
 
   $effect(() => {
-    const syncHash = () => (isRemote = location.hash === '#remote');
+    const syncHash = () => (isRemote = atRemote());
     window.addEventListener('hashchange', syncHash);
     return () => window.removeEventListener('hashchange', syncHash);
   });
 
   onMount(async () => {
     // The remote route is DB-free; only the main app needs the local data.
-    if (location.hash === '#remote') return;
+    if (atRemote()) return;
     await loadAll();
     ready = true;
   });

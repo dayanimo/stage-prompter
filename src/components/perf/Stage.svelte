@@ -25,7 +25,14 @@
   import { createAutoScroller, type AutoScroller } from '$lib/autoscroll';
   import { installShortcuts } from '$lib/shortcuts';
   import type { BeatInfo } from '$lib/metronome';
-  import { createRemoteChannel, type RemoteChannel, type RemoteCommand } from '$lib/remote';
+  import {
+    createRemoteChannel,
+    type RemoteChannel,
+    type RemoteCommand,
+    type RemoteMessage,
+  } from '$lib/remote';
+  import { createStagePeer, type StagePeer } from '$lib/peer';
+  import RemotePairing from '$components/perf/RemotePairing.svelte';
   import { untrack, onMount } from 'svelte';
 
   // ---- Active song resolution ------------------------------------------------
@@ -450,10 +457,26 @@
 
   let remote: RemoteChannel | null = null;
 
+  // Cross-device (phone over WiFi) host — created lazily when the user opens
+  // pairing, so we never touch the network unless remote control is wanted.
+  let stagePeer: StagePeer | null = null;
+  let pairing = $state(false);
+  let peerId = $state('');
+  let peerReady = $state(false);
+  let peerCount = $state(0);
+  const remoteUrl = $derived(
+    peerId ? `${location.origin}${location.pathname}#remote?p=${peerId}` : '',
+  );
+
+  function handleRemoteMessage(m: RemoteMessage): void {
+    if (m.kind === 'cmd') handleRemoteCommand(m.cmd);
+    else if (m.kind === 'hello') publishState();
+  }
+
   function publishState(): void {
-    if (!remote || !song) return;
-    remote.send({
-      kind: 'state',
+    if (!song) return;
+    const msg = {
+      kind: 'state' as const,
       state: {
         songTitle: song.title,
         songIndex: index,
@@ -465,19 +488,35 @@
         lineIndex: lineView ? lineIndex : -1,
         lineCount,
         lines: song.lines.map(lineText),
-        dir,
+        dir: dir as 'rtl' | 'ltr',
         ts: 0,
       },
+    };
+    remote?.send(msg);
+    stagePeer?.send(msg);
+  }
+
+  function ensureStagePeer(): void {
+    if (stagePeer) return;
+    const sp = createStagePeer();
+    stagePeer = sp;
+    sp.onMessage((m) => handleRemoteMessage(m));
+    sp.onStatus((open, peers) => {
+      peerReady = open;
+      peerCount = peers;
+      peerId = sp.id();
     });
+  }
+
+  function togglePairing(): void {
+    pairing = !pairing;
+    if (pairing) ensureStagePeer();
   }
 
   onMount(() => {
     const ch = createRemoteChannel();
     remote = ch;
-    const off = ch.onMessage((m) => {
-      if (m.kind === 'cmd') handleRemoteCommand(m.cmd);
-      else if (m.kind === 'hello') publishState();
-    });
+    const off = ch.onMessage((m) => handleRemoteMessage(m));
     return () => {
       off();
       ch.close();
@@ -485,10 +524,16 @@
     };
   });
 
+  // Close the cross-device host when the stage unmounts.
+  $effect(() => () => {
+    stagePeer?.close();
+    stagePeer = null;
+  });
+
   // Re-publish whenever anything a remote mirrors changes.
   $effect(() => {
     // Touch the reactive deps so this re-runs on change.
-    void [song?.id, index, songCount, playing, countingIn, speed, lineView, lineIndex, lineCount, dir];
+    void [song?.id, index, songCount, playing, countingIn, speed, lineView, lineIndex, lineCount, dir, peerCount];
     publishState();
   });
 
@@ -587,7 +632,7 @@
       onExit={exit}
       onFontUp={() => bumpFont(FONT_STEP)}
       onFontDown={() => bumpFont(-FONT_STEP)}
-      onRemote={openRemote}
+      onRemote={togglePairing}
       songIndex={index}
       songCount={songCount}
       songTitle={song.title}
@@ -609,6 +654,16 @@
           s.lineBars = n;
         })}
     />
+
+    {#if pairing}
+      <RemotePairing
+        url={remoteUrl}
+        ready={peerReady}
+        peers={peerCount}
+        onOpenLocal={openRemote}
+        onClose={() => (pairing = false)}
+      />
+    {/if}
   </div>
 {:else}
   <div class="empty">

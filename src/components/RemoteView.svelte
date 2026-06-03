@@ -7,17 +7,29 @@
    */
   import { onMount } from 'svelte';
   import { createRemoteChannel, type RemoteState, type RemoteCommand } from '$lib/remote';
+  import { createRemotePeer, type Link } from '$lib/peer';
 
   let snap = $state<RemoteState | null>(null);
   let connected = $state(false);
-  let channel: ReturnType<typeof createRemoteChannel> | null = null;
+  let channel: Link | null = null;
+
+  // A phone arrives via a scanned QR carrying `#remote?p=<stageId>`; a same-
+  // machine window has no id and uses the internal BroadcastChannel instead.
+  function getPeerId(): string {
+    const h = typeof location !== 'undefined' ? location.hash : '';
+    const q = h.indexOf('?');
+    if (q < 0) return '';
+    return new URLSearchParams(h.slice(q + 1)).get('p') ?? '';
+  }
+  const peerId = getPeerId();
+  const viaPeer = peerId.length > 0;
 
   function send(cmd: RemoteCommand) {
     channel?.send({ kind: 'cmd', cmd });
   }
 
   onMount(() => {
-    const ch = createRemoteChannel();
+    const ch: Link = viaPeer ? createRemotePeer(peerId) : createRemoteChannel();
     channel = ch;
     const off = ch.onMessage((m) => {
       if (m.kind === 'state') {
@@ -53,8 +65,12 @@
 
   {#if !connected}
     <div class="hint">
-      <p>ממתין לבמה…</p>
-      <p class="sub">פתח את מצב הנגינה (▶) בחלון או טאב אחר באותו מחשב, ודף זה יתחבר אוטומטית.</p>
+      <p>{viaPeer ? 'מתחבר לבמה…' : 'ממתין לבמה…'}</p>
+      <p class="sub">
+        {viaPeer
+          ? 'ודא ששני המכשירים על אותה רשת WiFi. החיבור נוצר אוטומטית.'
+          : 'פתח את מצב הנגינה (▶) בחלון או טאב אחר באותו מחשב, ודף זה יתחבר אוטומטית.'}
+      </p>
     </div>
   {:else}
     <!-- Lyrics mirror -->
