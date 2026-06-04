@@ -113,6 +113,55 @@ export function duplicateLine(song: Song, lineId: string): string {
   return copy.id;
 }
 
+// ---- Multi-line (bulk) ops -------------------------------------------------
+
+/** Indices of the given line ids, in document order. */
+function indicesOf(song: Song, ids: Set<string>): number[] {
+  const out: number[] = [];
+  song.lines.forEach((l, i) => {
+    if (ids.has(l.id)) out.push(i);
+  });
+  return out;
+}
+
+/** Duplicate every selected line (in document order) after the last of them. */
+export function duplicateLines(song: Song, ids: string[]): string[] {
+  const set = new Set(ids);
+  const idxs = indicesOf(song, set);
+  if (!idxs.length) return [];
+  const copies: Line[] = idxs.map((i) => ({ ...structuredClone(song.lines[i]), id: uid('ln_') }));
+  song.lines.splice(idxs[idxs.length - 1] + 1, 0, ...copies);
+  return copies.map((c) => c.id);
+}
+
+/** Remove every selected line; never leave the song empty. */
+export function deleteLines(song: Song, ids: string[]): void {
+  const set = new Set(ids);
+  const kept = song.lines.filter((l) => !set.has(l.id));
+  song.lines = kept.length ? kept : [{ id: uid('ln_'), segments: [{ text: '' }], notes: [] }];
+}
+
+/** Shift the whole selected block by one slot, preserving order and grouping. */
+export function moveLines(song: Song, ids: string[], dir: -1 | 1): void {
+  const set = new Set(ids);
+  const idxs = indicesOf(song, set);
+  if (!idxs.length) return;
+  if (dir === -1) {
+    for (const i of idxs) {
+      if (i > 0 && !set.has(song.lines[i - 1].id)) {
+        [song.lines[i - 1], song.lines[i]] = [song.lines[i], song.lines[i - 1]];
+      }
+    }
+  } else {
+    for (let k = idxs.length - 1; k >= 0; k--) {
+      const i = idxs[k];
+      if (i < song.lines.length - 1 && !set.has(song.lines[i + 1].id)) {
+        [song.lines[i + 1], song.lines[i]] = [song.lines[i], song.lines[i + 1]];
+      }
+    }
+  }
+}
+
 /** Replace a line's text, rebuilding into a single segment (drops chords/notes). */
 export function setLineText(song: Song, lineId: string, text: string): void {
   const line = findLine(song, lineId);

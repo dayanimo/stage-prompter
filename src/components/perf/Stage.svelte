@@ -596,7 +596,12 @@
         </div>
       {:else if line.kind === 'notation' && line.notation}
         <div class="special-line">
-          <NotationView notation={line.notation} color={lt.text} size={Math.round(lt.lyricSize * 0.3)} />
+          <NotationView
+            notation={line.notation}
+            color={lt.text}
+            size={Math.round(lt.lyricSize * 0.3)}
+            beatsPerBar={song?.timeSig.beats ?? 4}
+          />
         </div>
       {:else}
         <SongLine
@@ -640,6 +645,7 @@
                   notation={line.notation}
                   color={theme.text}
                   size={Math.round(theme.lyricSize * 0.34)}
+                  beatsPerBar={song.timeSig.beats}
                 />
               </div>
             {:else}

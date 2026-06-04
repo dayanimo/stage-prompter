@@ -263,6 +263,13 @@ export async function removeFavoriteChord(chord: Chord): Promise<void> {
   });
 }
 
+/** Empty the favorites quick-pick entirely. */
+export async function clearFavoriteChords(): Promise<void> {
+  await updateSettings((s) => {
+    s.favoriteChords = [];
+  });
+}
+
 // ---- Navigation helpers ----------------------------------------------------
 
 export function openSong(id: string): void {

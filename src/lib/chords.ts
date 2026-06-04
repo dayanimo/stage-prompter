@@ -107,9 +107,12 @@ export function formatChord(
   opts: { semitones?: number; acc?: Accidental } = {},
 ): string {
   const acc = opts.acc ?? 'sharps';
+  // Honor the chosen enharmonic spelling. When transposing we respell to the
+  // accidental preference (via transposeChord); when not, we keep exactly what
+  // the user picked — so Ab stays Ab and is never silently flipped to G#.
   const c = opts.semitones ? transposeChord(chord, opts.semitones, acc) : chord;
-  const base = `${spell(c.root, acc)}${variationSuffix(c.variation)}`;
-  return c.bass ? `${base}/${spell(c.bass, acc)}` : base;
+  const base = `${c.root}${variationSuffix(c.variation)}`;
+  return c.bass ? `${base}/${c.bass}` : base;
 }
 
 /** Roots grouped for the horizontal scroller (naturals + accidentals interleaved). */

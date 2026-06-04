@@ -7,12 +7,13 @@
     notation: NotationContent;
     color?: string;
     size?: number; // staff line gap in px
+    beatsPerBar?: number;
   }
-  let { notation, color = 'currentColor', size = 16 }: Props = $props();
+  let { notation, color = 'currentColor', size = 16, beatsPerBar = 0 }: Props = $props();
 </script>
 
 <div class="nv" dir="ltr">
-  <Staff notes={notation.notes} clef={notation.clef} {color} {size} />
+  <Staff notes={notation.notes} clef={notation.clef} {color} {size} {beatsPerBar} />
 </div>
 
 <style>

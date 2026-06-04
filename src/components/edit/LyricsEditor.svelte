@@ -27,6 +27,9 @@
     addLineRelative,
     moveLine,
     duplicateLine,
+    duplicateLines,
+    deleteLines,
+    moveLines,
   } from '$lib/edits';
   import { withAddedColumns } from '$lib/tab';
   import SongLine from '$components/common/SongLine.svelte';
@@ -154,6 +157,41 @@
       newId = duplicateLine(s, lineId);
     });
     if (newId) queueFocus(newId, 0);
+  }
+
+  // ---- Multi-line selection (bulk duplicate / move / delete) -----------------
+  let selectedIds = $state<string[]>([]);
+  const selectedCount = $derived(selectedIds.length);
+  function isSelected(id: string): boolean {
+    return selectedIds.includes(id);
+  }
+  function toggleSelect(id: string) {
+    selectedIds = isSelected(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id];
+  }
+  function clearSelection() {
+    selectedIds = [];
+  }
+  // Drop ids that no longer exist (e.g. after deletes elsewhere).
+  $effect(() => {
+    const live = new Set(song.lines.map((l) => l.id));
+    if (selectedIds.some((id) => !live.has(id))) {
+      selectedIds = selectedIds.filter((id) => live.has(id));
+    }
+  });
+
+  function bulkDuplicate() {
+    const ids = [...selectedIds];
+    updateSong(song.id, (s) => duplicateLines(s, ids));
+    clearSelection();
+  }
+  function bulkDelete() {
+    const ids = [...selectedIds];
+    updateSong(song.id, (s) => deleteLines(s, ids));
+    clearSelection();
+  }
+  function bulkMove(dir: -1 | 1) {
+    const ids = [...selectedIds];
+    updateSong(song.id, (s) => moveLines(s, ids, dir));
   }
 
   function addLineOfKind(kind: LineKind) {
@@ -334,8 +372,20 @@
     {/each}
   </datalist>
 
+  {#if selectedCount > 0}
+    <div class="bulk-bar" role="toolbar" aria-label="פעולות על שורות נבחרות">
+      <span class="bulk-count">{selectedCount} שורות נבחרו</span>
+      <button type="button" onclick={() => bulkMove(-1)} title="הזז למעלה">↑ הזז</button>
+      <button type="button" onclick={() => bulkMove(1)} title="הזז למטה">↓ הזז</button>
+      <button type="button" onclick={bulkDuplicate} title="שכפל את הנבחרות">⧉ שכפל</button>
+      <button type="button" class="danger" onclick={bulkDelete} title="מחק את הנבחרות">✕ מחק</button>
+      <button type="button" class="ghost" onclick={clearSelection}>בטל בחירה</button>
+    </div>
+  {/if}
+
   {#snippet lineActions(line: Line, idx: number, withNote: boolean)}
     <div class="line-actions">
+      <button type="button" class="icon sel" class:on={isSelected(line.id)} role="checkbox" aria-checked={isSelected(line.id)} title="בחר שורה (לפעולה מרובה)" aria-label="בחר שורה" onclick={() => toggleSelect(line.id)}>{isSelected(line.id) ? '☑' : '☐'}</button>
       <button type="button" class="icon" title="הזז שורה למעלה" aria-label="הזז שורה למעלה" disabled={idx === 0} onclick={() => moveLineBy(line.id, -1)}>↑</button>
       <button type="button" class="icon" title="הזז שורה למטה" aria-label="הזז שורה למטה" disabled={idx === song.lines.length - 1} onclick={() => moveLineBy(line.id, 1)}>↓</button>
       <button type="button" class="icon" title="הוסף שורה מעל" aria-label="הוסף שורה מעל" onclick={() => addAdjacentLine(line.id, 'above')}>⤒</button>
@@ -505,6 +555,7 @@
         {#if line.notation}
           <NotationEditor
             notation={line.notation}
+            beatsPerBar={song.timeSig.beats}
             onAppend={(n) => notationAppend(line.id, n)}
             onRemove={(i) => notationRemove(line.id, i)}
             onClef={(c) => notationClef(line.id, c)}
@@ -672,6 +723,63 @@
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: var(--sp-2);
+  }
+  .icon.sel {
+    color: var(--ink-3);
+    font-size: var(--text-base);
+  }
+  .icon.sel.on {
+    color: var(--accent);
+    border-color: color-mix(in oklch, var(--accent) 50%, transparent);
+    background: var(--accent-soft);
+  }
+  .bulk-bar {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky, 20);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    margin-bottom: var(--sp-1);
+    background: color-mix(in oklch, var(--accent-soft) 92%, var(--surface));
+    border: 1px solid color-mix(in oklch, var(--accent) 45%, transparent);
+    border-radius: var(--r-md);
+    backdrop-filter: blur(6px);
+  }
+  .bulk-count {
+    font-size: var(--text-sm);
+    font-weight: 700;
+    color: var(--accent);
+    margin-inline-end: auto;
+  }
+  .bulk-bar button {
+    height: 32px;
+    padding-inline: var(--sp-3);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-out);
+  }
+  .bulk-bar button:hover {
+    background: var(--surface-3);
+  }
+  .bulk-bar button.danger {
+    color: var(--danger);
+    border-color: color-mix(in oklch, var(--danger) 40%, transparent);
+  }
+  .bulk-bar button.ghost {
+    background: transparent;
+    color: var(--ink-2);
+  }
+  .bulk-bar button:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
   }
   .icon {
     width: 32px;

@@ -14,11 +14,20 @@
     clef?: 'treble' | 'bass';
     size?: number; // staff line gap in px
     color?: string;
+    /** Beats per bar (song time signature numerator); 0 disables barlines. */
+    beatsPerBar?: number;
     onPick?: (step: number) => void;
     onNoteClick?: (index: number) => void;
   }
-  let { notes, clef = 'treble', size = 14, color = 'currentColor', onPick, onNoteClick }: Props =
-    $props();
+  let {
+    notes,
+    clef = 'treble',
+    size = 14,
+    color = 'currentColor',
+    beatsPerBar = 0,
+    onPick,
+    onNoteClick,
+  }: Props = $props();
 
   const interactive = $derived(!!onPick);
 
@@ -31,7 +40,7 @@
   const CLEF_X = $derived(G * 1.2);
   const START_X = $derived(G * 3.4);
   const NOTE_DX = $derived(G * 2.4);
-  const width = $derived(Math.max(START_X + Math.max(1, notes.length) * NOTE_DX + G, G * 10));
+  const BAR_GAP = $derived(G * 1.0);
 
   const stepY = (step: number) => bottomLineY - step * (G / 2);
   const staffLineY = $derived([0, 1, 2, 3, 4].map((i) => PAD_TOP + i * G));
@@ -50,19 +59,24 @@
     index: number;
   }
 
-  const rendered = $derived.by<Rendered[]>(() =>
-    notes.map((n, i) => {
-      const x = START_X + i * NOTE_DX;
+  // Place notes left to right, inserting a barline + gap whenever the running
+  // beat count fills a measure (per the song's time signature).
+  const layout = $derived.by(() => {
+    const beats = beatsPerBar && beatsPerBar > 0 ? beatsPerBar : 0;
+    const items: Rendered[] = [];
+    const barlines: number[] = [];
+    let x = START_X;
+    let cum = 0;
+    notes.forEach((n, i) => {
       const y = stepY(n.step);
       const m = durMeta(n.dur);
       const stemUp = n.step <= 4;
       const stemX = x + (stemUp ? G * 0.58 : -G * 0.58);
       const stemLen = G * 3.3;
-      // Ledger lines on even steps outside the 0..8 staff range.
       const ledgers: number[] = [];
       if (n.step > 8) for (let e = 10; e <= n.step; e += 2) ledgers.push(stepY(e));
       if (n.step < 0) for (let e = -2; e >= n.step; e -= 2) ledgers.push(stepY(e));
-      return {
+      items.push({
         x,
         y,
         filled: m.filled,
@@ -74,9 +88,20 @@
         ledgers,
         acc: n.acc,
         index: i,
-      };
-    }),
-  );
+      });
+      x += NOTE_DX;
+      cum += m.beats;
+      if (beats > 0 && cum >= beats - 1e-6 && i < notes.length - 1) {
+        barlines.push(x - NOTE_DX * 0.45);
+        x += BAR_GAP;
+        cum -= beats;
+        if (cum < 1e-6) cum = 0;
+      }
+    });
+    const width = Math.max(x + G, G * 10);
+    return { items, barlines, width };
+  });
+  const width = $derived(layout.width);
 
   function onStaffClick(e: MouseEvent) {
     if (!onPick) return;
@@ -108,7 +133,12 @@
   <text x={CLEF_X} y={clef === 'treble' ? bottomLineY - G * 0.2 : PAD_TOP + G * 1.2} class="clef"
     style="font-size:{G * (clef === 'treble' ? 5.2 : 3.4)}px">{clef === 'treble' ? '𝄞' : '𝄢'}</text>
 
-  {#each rendered as r (r.index)}
+  <!-- barlines (per the song's time signature) -->
+  {#each layout.barlines as bx (bx)}
+    <line x1={bx} y1={staffLineY[0]} x2={bx} y2={staffLineY[4]} stroke="currentColor" stroke-width="1.3" opacity="0.85" />
+  {/each}
+
+  {#each layout.items as r (r.index)}
     <!-- ledger lines -->
     {#each r.ledgers as ly (ly)}
       <line x1={r.x - G * 0.95} y1={ly} x2={r.x + G * 0.95} y2={ly} stroke="currentColor" stroke-width="1.2" />

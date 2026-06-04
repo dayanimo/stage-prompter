@@ -10,12 +10,13 @@
 
   interface Props {
     notation: NotationContent;
+    beatsPerBar?: number;
     onAppend: (note: StaffNote) => void;
     onRemove: (index: number) => void;
     onClef: (clef: 'treble' | 'bass') => void;
     onClear: () => void;
   }
-  let { notation, onAppend, onRemove, onClef, onClear }: Props = $props();
+  let { notation, beatsPerBar = 0, onAppend, onRemove, onClef, onClear }: Props = $props();
 
   let dur = $state<NoteDur>('q');
   let acc = $state<'#' | 'b' | null>(null);
@@ -60,7 +61,14 @@
   </div>
 
   <div class="staff-wrap">
-    <Staff notes={notation.notes} clef={notation.clef} size={15} onPick={pick} onNoteClick={onRemove} />
+    <Staff
+      notes={notation.notes}
+      clef={notation.clef}
+      size={15}
+      {beatsPerBar}
+      onPick={pick}
+      onNoteClick={onRemove}
+    />
   </div>
 
   <p class="hint">לחץ על החמשה כדי להוסיף תו בגובה הזה · לחץ על תו כדי למחוק. תו אחרון: {lastPitch}</p>

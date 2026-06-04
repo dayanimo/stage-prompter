@@ -15,6 +15,7 @@
     undoState,
     addFavoriteChord,
     removeFavoriteChord,
+    clearFavoriteChords,
   } from '$stores/app';
   import type { Chord } from '$lib/model';
   import { applyChord } from '$lib/edits';
@@ -264,6 +265,7 @@
       armed={!!selection}
       onpick={pickChord}
       onremove={removeFavoriteChord}
+      onclear={clearFavoriteChords}
       onclose={() => (showFavorites = false)}
     />
   {/if}

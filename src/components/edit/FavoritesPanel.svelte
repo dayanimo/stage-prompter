@@ -14,10 +14,11 @@
     armed: boolean;
     onpick: (chord: Chord) => void;
     onremove: (chord: Chord) => void;
+    onclear: () => void;
     onclose: () => void;
   }
 
-  let { chords, accidental, armed, onpick, onremove, onclose }: Props = $props();
+  let { chords, accidental, armed, onpick, onremove, onclear, onclose }: Props = $props();
 
   const POS_KEY = 'sp.favPos';
   type Pos = { x: number; y: number };
@@ -82,6 +83,9 @@
   <header class="fav-head" onpointerdown={startDrag}>
     <span class="grip" aria-hidden="true">⠿</span>
     <span class="fav-title">מועדפים</span>
+    {#if chords.length > 0}
+      <button class="fav-clear" type="button" onclick={onclear} title="אפס את כל המועדפים">נקה</button>
+    {/if}
     <button class="fav-x" type="button" onclick={onclose} aria-label="סגור מועדפים">✕</button>
   </header>
 
@@ -161,6 +165,17 @@
   }
   .fav-x:hover {
     color: var(--ink);
+  }
+  .fav-clear {
+    background: none;
+    border: none;
+    color: var(--ink-3);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    padding: 0 var(--sp-2);
+  }
+  .fav-clear:hover {
+    color: var(--danger);
   }
   .fav-empty,
   .fav-hint {
