@@ -97,9 +97,14 @@ describe('backup / restore round-trips every feature', () => {
     await putSet(structuredClone(set));
     await putSettings(settings);
 
-    const snap = await exportSnapshot();
+    // Mirror the REAL backup path: the app serializes the snapshot to a JSON
+    // file (JSON.stringify) and re-imports the parsed JSON. Round-trip through
+    // JSON here so the test proves the actual on-disk format survives, not just
+    // an in-memory structured clone.
+    const snapRaw = await exportSnapshot();
+    const snap = JSON.parse(JSON.stringify(snapRaw));
 
-    // Wipe and restore from the snapshot only.
+    // Wipe and restore from the JSON snapshot only.
     await importSnapshot(snap, 'replace');
 
     const [songs2, sets2, settings2] = await Promise.all([
