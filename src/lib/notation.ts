@@ -23,6 +23,25 @@ export function pitchName(step: number, clef: 'treble' | 'bass' = 'treble'): str
   return `${letter}${octave}`;
 }
 
+// Semitone offset within an octave for each diatonic letter (C..B order).
+const LETTER_SEMITONE = [0, 2, 4, 5, 7, 9, 11];
+
+/** MIDI note number for a step (+ accidental), e.g. treble step 0 = E4 = 64. */
+export function stepToMidi(
+  step: number,
+  acc: '#' | 'b' | null | undefined,
+  clef: 'treble' | 'bass' = 'treble',
+): number {
+  const base = BOTTOM[clef];
+  const total = base.letter + step;
+  const letterIdx = ((total % 7) + 7) % 7;
+  const octave = base.octave + Math.floor(total / 7);
+  let midi = (octave + 1) * 12 + LETTER_SEMITONE[letterIdx];
+  if (acc === '#') midi += 1;
+  else if (acc === 'b') midi -= 1;
+  return midi;
+}
+
 export const DURATIONS: { id: NoteDur; label: string; beats: number; filled: boolean; flags: number }[] = [
   { id: 'w', label: 'שלם', beats: 4, filled: false, flags: 0 },
   { id: 'h', label: 'חצי', beats: 2, filled: false, flags: 0 },

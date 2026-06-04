@@ -157,9 +157,9 @@
       />
     {/each}
 
-    <!-- accidental -->
+    <!-- accidental (snug to the left of its note head) -->
     {#if r.acc}
-      <text x={r.x - G * 1.5} y={r.y + G * 0.35} class="acc" style="font-size:{G * 1.7}px"
+      <text x={r.x - G * 0.95} y={r.y + G * 0.32} class="acc" style="font-size:{G * 1.5}px"
         >{r.acc === '#' ? '♯' : '♭'}</text>
     {/if}
 

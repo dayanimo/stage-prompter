@@ -5,7 +5,8 @@
    * head to remove it. Pure: changes are reported up for `updateSong`.
    */
   import type { NotationContent, StaffNote, NoteDur } from '$lib/model';
-  import { DURATIONS, pitchName } from '$lib/notation';
+  import { DURATIONS, pitchName, durMeta, stepToMidi } from '$lib/notation';
+  import { playTone, midiToFreq, type Timbre } from '$lib/audio';
   import Staff from '$components/common/Staff.svelte';
 
   interface Props {
@@ -20,9 +21,17 @@
 
   let dur = $state<NoteDur>('q');
   let acc = $state<'#' | 'b' | null>(null);
+  let timbre = $state<Timbre>('piano');
+
+  // Seconds per beat for the preview tone — a steady, moderate feel so longer
+  // notes audibly ring longer ("according to the note's weight").
+  const SEC_PER_BEAT = 0.5;
 
   function pick(step: number) {
     onAppend({ step, dur, acc });
+    // Preview the pitch, ringing for the chosen note value.
+    const freq = midiToFreq(stepToMidi(step, acc, notation.clef));
+    playTone(freq, durMeta(dur).beats * SEC_PER_BEAT, timbre);
   }
 
   const lastPitch = $derived(
@@ -52,6 +61,15 @@
       <button type="button" class="dbtn" class:on={acc === '#'} role="radio" aria-checked={acc === '#'} onclick={() => (acc = '#')} title="דיאז">♯</button>
       <button type="button" class="dbtn" class:on={acc === 'b'} role="radio" aria-checked={acc === 'b'} onclick={() => (acc = 'b')} title="במול">♭</button>
     </div>
+
+    <button
+      type="button"
+      class="dbtn wide"
+      onclick={() => (timbre = timbre === 'piano' ? 'organ' : 'piano')}
+      title="צליל התצוגה: פסנתר / אורגן"
+    >
+      {timbre === 'piano' ? '🎹 פסנתר' : '🎹 אורגן'}
+    </button>
 
     <button type="button" class="dbtn wide" onclick={() => onClef(notation.clef === 'treble' ? 'bass' : 'treble')} title="החלף מפתח">
       {notation.clef === 'treble' ? '𝄞 סול' : '𝄢 פה'}
