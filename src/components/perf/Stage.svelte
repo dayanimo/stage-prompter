@@ -90,6 +90,14 @@
   const lineCount = $derived(song?.lines.length ?? 0);
   const activeLine = $derived(song?.lines[lineIndex] ?? null);
   const nextLine = $derived(song?.lines[lineIndex + 1] ?? null);
+  // Staff-notation size is fixed to the DEFAULT lyric size, so the live font
+  // controls (A+/A−, which only bump the per-song theme) never change the
+  // notation's relative size — it stays as set by default.
+  const defaultLyric = $derived($settings.defaultTheme?.lyricSize ?? 40);
+  const notationGap = $derived(Math.max(9, Math.round(defaultLyric * 0.34)));
+  const notationGapFocus = $derived(
+    Math.max(11, Math.round(Math.min(FOCUS_CAP, Math.round(defaultLyric * FOCUS_SCALE)) * 0.3)),
+  );
   const focusTheme = $derived(
     theme
       ? {
@@ -221,23 +229,35 @@
     if (scrollEl) scrollEl.scrollTop = 0;
   });
 
+  // Manually nudge the scroll position (works whether playing or paused; the
+  // rAF engine just continues from the new position).
+  const SCROLL_NUDGE = 72;
+  function nudgeScroll(delta: number): void {
+    if (!scrollEl) return;
+    const max = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+    scrollEl.scrollTop = Math.max(0, Math.min(max, scrollEl.scrollTop + delta));
+  }
+
   // ---- Keyboard shortcuts ----------------------------------------------------
+  // Scroll mode: ↑/↓ nudge the scroll, ←/→ change speed, PageUp/Down change song.
+  // 2-line mode: ↑/↓ page lines, ←/→ change song (RTL-aware), Space advances.
   $effect(() => {
     const rtl = isRtl;
     const focus = lineView;
+    const songPrev = () => go(-1);
+    const songNext = () => go(1);
     const uninstall = installShortcuts({
-      // In focus mode, Space and the vertical arrows page lines instead of
-      // toggling/scrolling; song nav stays on the horizontal arrows.
       toggleScroll: focus ? nextLineStep : togglePlay,
-      next: () => go(1),
-      prev: () => go(-1),
+      arrowUp: focus ? prevLineStep : () => nudgeScroll(-SCROLL_NUDGE),
+      arrowDown: focus ? nextLineStep : () => nudgeScroll(SCROLL_NUDGE),
+      arrowLeft: focus ? (rtl ? songNext : songPrev) : () => bumpSpeed(-SPEED_STEP),
+      arrowRight: focus ? (rtl ? songPrev : songNext) : () => bumpSpeed(SPEED_STEP),
+      pageUp: songPrev,
+      pageDown: songNext,
       fontUp: () => bumpFont(FONT_STEP),
       fontDown: () => bumpFont(-FONT_STEP),
-      speedUp: focus ? prevLineStep : () => bumpSpeed(SPEED_STEP),
-      speedDown: focus ? nextLineStep : () => bumpSpeed(-SPEED_STEP),
       fullscreen: toggleFullscreen,
       exit: exit,
-      rtl,
     });
     return uninstall;
   });
@@ -599,7 +619,7 @@
           <NotationView
             notation={line.notation}
             color={lt.text}
-            size={Math.round(lt.lyricSize * 0.3)}
+            size={notationGapFocus}
             beatsPerBar={song?.timeSig.beats ?? 4}
           />
         </div>
@@ -644,7 +664,7 @@
                 <NotationView
                   notation={line.notation}
                   color={theme.text}
-                  size={Math.round(theme.lyricSize * 0.34)}
+                  size={notationGap}
                   beatsPerBar={song.timeSig.beats}
                 />
               </div>

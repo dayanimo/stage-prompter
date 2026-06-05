@@ -72,7 +72,8 @@ to a `.json` file, copy it over, and import it on the other computer.
   font sizes, time signature + BPM with tap-tempo.
 - **Perform:** full-screen portrait/landscape stage, auto-scroll with speed control and auto-advance
   between songs, visual metronome (red downbeat / blue off-beats) with optional click and count-in,
-  keyboard shortcuts (Space play/pause, ←/→ prev/next, ↑/↓ speed, +/- font, F fullscreen, Esc exit).
+  keyboard shortcuts (Space play/pause, ↑/↓ scroll, ←/→ speed, PgUp/PgDn prev/next song,
+  +/- font, F fullscreen, Esc exit).
 
 ## Stack
 

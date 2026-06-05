@@ -1,30 +1,32 @@
 /**
  * Track F — keyboard shortcuts for performance mode.
  *
- * Mapping (per CONTRACTS.md):
- *   Space          → toggle auto-scroll
- *   ArrowRight/Left → next / prev song (respecting RTL: in RTL, Right = prev)
- *   ArrowUp/Down    → scroll speed up / down
- *   + / =           → font size up
- *   - / _           → font size down
- *   F               → toggle fullscreen
- *   Escape          → exit performance
+ * Mapping:
+ *   Space            → toggle play / pause (or advance line in 2-line mode)
+ *   ArrowUp/Down     → scroll up / down   (manual nudge of the auto-scroll)
+ *   ArrowLeft/Right  → scroll speed down / up
+ *   PageUp/PageDown  → previous / next song
+ *   + / =            → font size up
+ *   - / _            → font size down
+ *   F                → toggle fullscreen
+ *   Escape           → exit performance
  *
- * Ignored when focus is inside an editable field (input/textarea/select/
- * contenteditable) so typing never triggers transport. Returns an uninstaller.
+ * The caller (Stage) decides what each arrow does per mode — these are just the
+ * raw arrow callbacks. Ignored when focus is inside an editable field so typing
+ * never triggers transport. Returns an uninstaller.
  */
 export interface ShortcutHandlers {
   toggleScroll(): void;
-  next(): void;
-  prev(): void;
+  arrowUp(): void;
+  arrowDown(): void;
+  arrowLeft(): void;
+  arrowRight(): void;
+  pageUp(): void;
+  pageDown(): void;
   fontUp(): void;
   fontDown(): void;
-  speedUp(): void;
-  speedDown(): void;
   fullscreen(): void;
   exit(): void;
-  /** When true, horizontal arrows are mirrored (Right = prev, Left = next). */
-  rtl?: boolean;
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -41,31 +43,35 @@ export function installShortcuts(handlers: ShortcutHandlers): () => void {
     if (isEditableTarget(e.target)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
 
-    const rtl = handlers.rtl ?? false;
-
     switch (e.key) {
       case ' ':
       case 'Spacebar': // legacy key name
         e.preventDefault();
         handlers.toggleScroll();
         break;
-      case 'ArrowRight':
-        e.preventDefault();
-        if (rtl) handlers.prev();
-        else handlers.next();
-        break;
-      case 'ArrowLeft':
-        e.preventDefault();
-        if (rtl) handlers.next();
-        else handlers.prev();
-        break;
       case 'ArrowUp':
         e.preventDefault();
-        handlers.speedUp();
+        handlers.arrowUp();
         break;
       case 'ArrowDown':
         e.preventDefault();
-        handlers.speedDown();
+        handlers.arrowDown();
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        handlers.arrowLeft();
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        handlers.arrowRight();
+        break;
+      case 'PageUp':
+        e.preventDefault();
+        handlers.pageUp();
+        break;
+      case 'PageDown':
+        e.preventDefault();
+        handlers.pageDown();
         break;
       case '+':
       case '=':
