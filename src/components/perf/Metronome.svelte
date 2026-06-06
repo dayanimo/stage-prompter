@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { TimeSignature } from '$lib/model';
   import { createMetronome, type MetronomeHandle, type BeatInfo } from '$lib/metronome';
 
@@ -31,18 +32,16 @@
 
   const beatCount = $derived(Math.max(1, Math.min(16, timeSig.beats)));
 
-  // (Re)build the scheduler whenever the engine inputs change.
+  // Lifecycle: build the scheduler when playback starts, tear it down when it
+  // stops. This effect depends ONLY on `running` — the tempo/sig/click/count-in
+  // values are read *untracked* at start. That is deliberate: during a live
+  // performance `updateSong` clones the song (e.g. persisting scroll speed or a
+  // font bump), handing us a brand-new `timeSig` object every time. Tracking it
+  // here would tear down and rebuild the metronome mid-bar, resetting the beat
+  // counter so the clicks and lights jump back to beat 1. Live changes instead
+  // flow through the sync effect below via setTempo/setClick (no rebuild).
   $effect(() => {
-    // Read deps so Svelte tracks them.
     const isRunning = running;
-    const b = bpm;
-    const ts = timeSig;
-    const ci = countInBars;
-    const clk = click;
-
-    handle?.stop();
-    handle = null;
-
     if (!isRunning) {
       active = -1;
       counting = false;
@@ -50,10 +49,10 @@
     }
 
     const h = createMetronome({
-      bpm: b,
-      timeSig: ts,
-      click: clk,
-      countInBars: ci,
+      bpm: untrack(() => bpm),
+      timeSig: untrack(() => timeSig),
+      click: untrack(() => click),
+      countInBars: untrack(() => countInBars),
       onBeat: (info) => {
         active = info.beat;
         counting = info.countingIn;
@@ -65,9 +64,23 @@
 
     return () => {
       h.stop();
+      handle = null;
       active = -1;
       counting = false;
     };
+  });
+
+  // Push live tempo / time-signature / click changes to the running scheduler
+  // WITHOUT rebuilding it. setTempo only affects beats scheduled from here on,
+  // so already-committed audio stays clean and the beat counter keeps running.
+  // (countInBars is intentionally not synced — it only matters at the next start.)
+  $effect(() => {
+    const b = bpm;
+    const beats = timeSig.beats;
+    const unit = timeSig.unit;
+    const clk = click;
+    handle?.setTempo(b, { beats, unit });
+    handle?.setClick(clk);
   });
 </script>
 

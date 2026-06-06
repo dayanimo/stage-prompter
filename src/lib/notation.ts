@@ -42,12 +42,14 @@ export function stepToMidi(
   return midi;
 }
 
-export const DURATIONS: { id: NoteDur; label: string; beats: number; filled: boolean; flags: number }[] = [
-  { id: 'w', label: 'שלם', beats: 4, filled: false, flags: 0 },
-  { id: 'h', label: 'חצי', beats: 2, filled: false, flags: 0 },
-  { id: 'q', label: 'רבע', beats: 1, filled: true, flags: 0 },
-  { id: '8', label: 'שמינית', beats: 0.5, filled: true, flags: 1 },
-  { id: '16', label: 'שש-עשרה', beats: 0.25, filled: true, flags: 2 },
+export const DURATIONS: { id: NoteDur; label: string; beats: number; filled: boolean; flags: number; stem: boolean }[] = [
+  // `stem`: a whole note is the one value drawn with no stem — that (plus the
+  // open head) is what tells it apart from a half note at a glance.
+  { id: 'w', label: 'שלם', beats: 4, filled: false, flags: 0, stem: false },
+  { id: 'h', label: 'חצי', beats: 2, filled: false, flags: 0, stem: true },
+  { id: 'q', label: 'רבע', beats: 1, filled: true, flags: 0, stem: true },
+  { id: '8', label: 'שמינית', beats: 0.5, filled: true, flags: 1, stem: true },
+  { id: '16', label: 'שש-עשרה', beats: 0.25, filled: true, flags: 2, stem: true },
 ];
 
 export function durMeta(id: NoteDur) {

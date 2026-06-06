@@ -45,10 +45,19 @@
   const stepY = (step: number) => bottomLineY - step * (G / 2);
   const staffLineY = $derived([0, 1, 2, 3, 4].map((i) => PAD_TOP + i * G));
 
+  // Stroke weights scale with the staff gap so note-value cues (open head ring,
+  // stem, flags) stay legible at the smaller sizes used in performance — at a
+  // glance an under-weighted open head reads as filled and a thin flag vanishes,
+  // making every note look like a quarter.
+  const STEM_W = $derived(Math.max(1.6, G * 0.13));
+  const RING_W = $derived(Math.max(2, G * 0.2));
+  const FLAG_W = $derived(Math.max(2, G * 0.18));
+
   interface Rendered {
     x: number;
     y: number;
     filled: boolean;
+    stem: boolean;
     stemUp: boolean;
     stemX: number;
     stemY1: number;
@@ -80,6 +89,7 @@
         x,
         y,
         filled: m.filled,
+        stem: m.stem,
         stemUp,
         stemX,
         stemY1: y,
@@ -144,16 +154,19 @@
       <line x1={r.x - G * 0.95} y1={ly} x2={r.x + G * 0.95} y2={ly} stroke="currentColor" stroke-width="1.2" />
     {/each}
 
-    <!-- stem -->
-    <line x1={r.stemX} y1={r.stemY1} x2={r.stemX} y2={r.stemY2} stroke="currentColor" stroke-width="1.4" />
+    <!-- stem (every value except the whole note) -->
+    {#if r.stem}
+      <line x1={r.stemX} y1={r.stemY1} x2={r.stemX} y2={r.stemY2} stroke="currentColor" stroke-width={STEM_W} />
+    {/if}
 
-    <!-- flags -->
+    <!-- flags (eighth = 1, sixteenth = 2) — bold so the value reads at a glance -->
     {#each Array(r.flags) as _, fi (fi)}
       <path
-        d={`M${r.stemX} ${r.stemY2 + (r.stemUp ? fi * G * 0.7 : -fi * G * 0.7)} q ${G * 1.1} ${r.stemUp ? G * 0.5 : -G * 0.5} ${G * 0.9} ${r.stemUp ? G * 1.5 : -G * 1.5}`}
+        d={`M${r.stemX} ${r.stemY2 + (r.stemUp ? fi * G * 0.78 : -fi * G * 0.78)} q ${G * 1.2} ${r.stemUp ? G * 0.55 : -G * 0.55} ${G * 1.0} ${r.stemUp ? G * 1.7 : -G * 1.7}`}
         fill="none"
         stroke="currentColor"
-        stroke-width="1.4"
+        stroke-width={FLAG_W}
+        stroke-linecap="round"
       />
     {/each}
 
@@ -172,7 +185,7 @@
       transform={`rotate(-20 ${r.x} ${r.y})`}
       fill={r.filled ? 'currentColor' : 'none'}
       stroke="currentColor"
-      stroke-width={r.filled ? 0 : 1.6}
+      stroke-width={r.filled ? 0 : RING_W}
       class="head"
       class:clickable={!!onNoteClick}
       role={onNoteClick ? 'button' : undefined}

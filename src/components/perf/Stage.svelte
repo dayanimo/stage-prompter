@@ -94,9 +94,11 @@
   // controls (A+/A−, which only bump the per-song theme) never change the
   // notation's relative size — it stays as set by default.
   const defaultLyric = $derived($settings.defaultTheme?.lyricSize ?? 40);
-  const notationGap = $derived(Math.max(9, Math.round(defaultLyric * 0.34)));
+  // Floors keep the staff large enough that note-value cues (open heads, flags)
+  // stay readable on stage — below ~12px gap every note blurs into a quarter.
+  const notationGap = $derived(Math.max(12, Math.round(defaultLyric * 0.34)));
   const notationGapFocus = $derived(
-    Math.max(11, Math.round(Math.min(FOCUS_CAP, Math.round(defaultLyric * FOCUS_SCALE)) * 0.3)),
+    Math.max(14, Math.round(Math.min(FOCUS_CAP, Math.round(defaultLyric * FOCUS_SCALE)) * 0.3)),
   );
   const focusTheme = $derived(
     theme
